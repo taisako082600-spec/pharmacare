@@ -99,7 +99,8 @@ Firebase IDトークンのRS256署名検証は、外部SDKに依存せず標準�
 # https://flutter.dev/docs/get-started/install
 
 # プロジェクトを取得
-cd pharmacist_app
+git clone https://github.com/taisako082600-spec/pharmacare.git
+cd pharmacare
 
 # 依存関係をインストール
 flutter pub get
@@ -246,7 +247,9 @@ llm-proxy/                         # Go製LLMプロキシ（Claude API連携・�
 
 ## ライセンス
 
-内部使用限定
+All rights reserved.
+
+本リポジトリは**技術的な取り組みを公開・共有する目的**で開示しています。コードの複製・再配布・商用利用は許諾していません。
 
 ## 最後に
 
@@ -255,4 +258,4 @@ llm-proxy/                         # Go製LLMプロキシ（Claude API連携・�
 
 ---
 
-**最終更新**: 2026年7月16日
+**最終更新**: 2026年8月10日
