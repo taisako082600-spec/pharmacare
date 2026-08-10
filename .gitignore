@@ -1,0 +1,117 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/coverage/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# --- 以下、公開リポジトリ化にあたり追加 (2026-08-09) ---
+
+# Firebase / プラットフォーム固有の設定ファイル
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+macos/Runner/GoogleService-Info.plist
+android/local.properties
+.firebaserc
+
+# 環境変数
+.env
+*.env
+!.env.example
+
+# ビルド済みバイナリ (各10MB前後・リポジトリに含めない)
+*.exe
+*.dll
+*.so
+*.dylib
+
+# ログ・ローカル生成物
+out.log
+analysis.txt
+*.log
+
+# 依存パッケージ
+node_modules/
+
+# Gradle / Kotlin のローカルキャッシュ
+android/.gradle/
+android/.kotlin/
+
+# 書籍からの抽出ノート (著作権配慮のため非公開)
+triage_source_extracts/
+
+# --- 個人的な文書 (絶対に公開しない) ---
+職務経歴書*.md
+転職ロード*.md
+並行実行計画*.md
+カジュアル面談*.md
+ACTION_PLAN_90days.md
+GIT_SETUP_手順.md
+PharmaCore_Goプロキシ_引き継ぎブリーフ.md
+Go基本まとめ*.docx
+1_git初期化.bat
+2_GitHubへ公開.bat
+
+# 内部向けドキュメント
+HOW_TO_UPDATE_MARKETING.md
+MARKETING_VISUAL.md
+analysis.txt
+out.log
+
+# 書籍由来の判定根拠 (著作権配慮のため非公開)
+OTC_TRIAGE_OVERVIEW.md
+OTC_TRIAGE_OVERVIEW_VISUAL.html
+OTC_TRIAGE_OVERVIEW_VISUAL.pdf
+
+# 営業資料 (顧客提案用。リポジトリには含めない)
+MARKETING.md
+
+# 学習用サンプル・一時スクリプト
+go-crud-sample/
+write_home.js
+write_home.py
+
+# 内部作業メモ・過程の記録 (成果物ではないため非公開)
+VERSIONS.md
+
+# PDF (同名の .md があるため重複)
+USER_GUIDE.pdf

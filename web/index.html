@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <!--
+    If you are serving your web app in a path other than the root, change the
+    href value below to reflect the base path you are serving from.
+
+    The path provided below has to start and end with a slash "/" in order for
+    it to work correctly.
+
+    For more details:
+    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
+
+    This is a placeholder for base href that will be replaced by the value of
+    the `--base-href` argument provided to `flutter build`.
+  -->
+  <base href="$FLUTTER_BASE_HREF">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="description" content="A new Flutter project.">
+
+  <!-- iOS meta tags & icons -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="pharmacist_app">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <title>pharmacist_app</title>
+  <link rel="manifest" href="manifest.json">
+  <script src="jsqr.min.js"></script>
+  <script src="qr-scanner.legacy.min.js"></script>
+  <script>
+  // ライブカメラQRスキャナー
+  // maxScans: 読み取り枚数上限, onDone: callback(JSON文字列 or null)
+  window.startLiveQRScanner = function(maxScans, onDone) {
+    if (document.getElementById('_liveqr_overlay')) return;
+    var scanned = [];
+    var scanner = null;
+
+    var ov = document.createElement('div');
+    ov.id = '_liveqr_overlay';
+    ov.style.cssText = 'position:fixed;inset:0;background:#000;z-index:99999;display:flex;flex-direction:column;align-items:center;font-family:sans-serif;';
+
+    // ヘッダー
+    var hdr = document.createElement('div');
+    hdr.style.cssText = 'width:100%;display:flex;align-items:center;justify-content:space-between;padding:16px 20px;box-sizing:border-box;background:rgba(0,0,0,0.8);';
+    var titleEl = document.createElement('div');
+    titleEl.style.cssText = 'color:#fff;font-size:15px;font-weight:bold;';
+    titleEl.textContent = 'QRコードをかざしてください';
+    var closeBtn = document.createElement('button');
+    closeBtn.textContent = '✕';
+    closeBtn.style.cssText = 'background:none;border:none;color:#fff;font-size:22px;cursor:pointer;padding:4px 12px;';
+    closeBtn.onclick = function() { _stop(); };
+    hdr.appendChild(titleEl); hdr.appendChild(closeBtn); ov.appendChild(hdr);
+
+    // カウンター
+    var counter = document.createElement('div');
+    counter.style.cssText = 'display:flex;gap:12px;padding:10px 0 8px;';
+    function updateCounter() {
+      counter.innerHTML = '';
+      for (var i = 0; i < maxScans; i++) {
+        var dot = document.createElement('div');
+        var done = i < scanned.length;
+        dot.style.cssText = 'width:40px;height:40px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:bold;' +
+          (done ? 'background:#1976D2;color:#fff;' : 'background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.4);');
+        dot.textContent = done ? '✓' : (i + 1);
+        counter.appendChild(dot);
+      }
+    }
+    updateCounter(); ov.appendChild(counter);
+
+    // ビデオ領域
+    var vwrap = document.createElement('div');
+    vwrap.style.cssText = 'position:relative;width:100%;flex:1;overflow:hidden;';
+    var video = document.createElement('video');
+    video.autoplay = true; video.playsInline = true; video.muted = true;
+    video.style.cssText = 'width:100%;height:100%;object-fit:cover;';
+    vwrap.appendChild(video);
+
+    // スキャン枠
+    var box = document.createElement('div');
+    box.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-55%);width:230px;height:230px;border:3px solid #42A5F5;border-radius:12px;box-shadow:0 0 0 9999px rgba(0,0,0,0.45);pointer-events:none;';
+    ['top:0;left:0;border-top:4px solid #fff;border-left:4px solid #fff;border-top-left-radius:8px;',
+     'top:0;right:0;border-top:4px solid #fff;border-right:4px solid #fff;border-top-right-radius:8px;',
+     'bottom:0;left:0;border-bottom:4px solid #fff;border-left:4px solid #fff;border-bottom-left-radius:8px;',
+     'bottom:0;right:0;border-bottom:4px solid #fff;border-right:4px solid #fff;border-bottom-right-radius:8px;'
+    ].forEach(function(css) {
+      var c = document.createElement('div');
+      c.style.cssText = 'position:absolute;width:22px;height:22px;' + css;
+      box.appendChild(c);
+    });
+    vwrap.appendChild(box);
+
+    // フラッシュ
+    var flash = document.createElement('div');
+    flash.style.cssText = 'position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity 0.25s;';
+    vwrap.appendChild(flash);
+
+    // ステータス
+    var status = document.createElement('div');
+    status.style.cssText = 'position:absolute;bottom:12px;left:0;right:0;text-align:center;color:#fff;font-size:13px;text-shadow:0 1px 4px #000;';
+    status.textContent = 'QRコードが枠内に収まるよう近づけてください';
+    vwrap.appendChild(status);
+    ov.appendChild(vwrap);
+
+    // フッター
+    var ftr = document.createElement('div');
+    ftr.style.cssText = 'width:100%;padding:12px 20px 24px;box-sizing:border-box;background:rgba(0,0,0,0.8);';
+    var doneBtn = document.createElement('button');
+    doneBtn.style.cssText = 'width:100%;padding:14px;background:#388E3C;color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:bold;cursor:pointer;opacity:0.35;';
+    doneBtn.textContent = '完了（0/' + maxScans + '）';
+    doneBtn.disabled = true;
+    doneBtn.onclick = function() { _stop(); };
+    ftr.appendChild(doneBtn); ov.appendChild(ftr);
+    document.body.appendChild(ov);
+
+    var paused = false;
+
+    function onDetected(data) {
+      if (!data || scanned.indexOf(data) !== -1 || paused) return;
+      paused = true;
+      scanned.push(data);
+      flash.style.opacity = '0.8';
+      setTimeout(function() { flash.style.opacity = '0'; }, 150);
+      updateCounter();
+      doneBtn.textContent = '完了（' + scanned.length + '/' + maxScans + '）';
+      doneBtn.disabled = false; doneBtn.style.opacity = '1';
+      if (scanned.length >= maxScans) {
+        status.textContent = 'すべて読み取り完了！';
+        setTimeout(function() { _stop(); }, 600);
+        return;
+      }
+      status.textContent = scanned.length + '枚読み取り！次のQRをかざしてください';
+      setTimeout(function() { paused = false; status.textContent = 'QRコードが枠内に収まるよう近づけてください'; }, 1500);
+    }
+
+    function _stop() {
+      if (scanner) { try { scanner.stop(); scanner.destroy(); } catch(e) {} scanner = null; }
+      if (ov.parentNode) ov.parentNode.removeChild(ov);
+      if (onDone) onDone(scanned.length > 0 ? JSON.stringify(scanned) : null);
+    }
+
+    // QrScanner でライブ検出
+    if (typeof QrScanner !== 'undefined') {
+      try {
+        scanner = new QrScanner(video, function(result) {
+          var data = (result && typeof result === 'object') ? result.data : result;
+          onDetected(data);
+        }, {
+          onDecodeError: function() {},
+          preferredCamera: 'environment',
+          highlightScanRegion: false,
+          calculateScanRegion: function(v) {
+            var s = Math.min(v.videoWidth, v.videoHeight) * 0.7;
+            return { x: (v.videoWidth - s) / 2, y: (v.videoHeight - s) / 2, width: s, height: s };
+          }
+        });
+        scanner.start().catch(function(err) {
+          status.textContent = 'カメラにアクセスできません: ' + err.message;
+        });
+      } catch(e) {
+        status.textContent = 'スキャナー起動エラー: ' + e;
+      }
+    } else {
+      // jsQR フォールバック（canvas ループ）
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }).then(function(stream) {
+        video.srcObject = stream;
+        var canvas = document.createElement('canvas');
+        var ctx2 = canvas.getContext('2d');
+        var active = true;
+        closeBtn.addEventListener('click', function() { active = false; stream.getTracks().forEach(function(t){t.stop();}); });
+        doneBtn.addEventListener('click', function() { active = false; stream.getTracks().forEach(function(t){t.stop();}); });
+        function tick() {
+          if (!active || !ov.parentNode) return;
+          if (video.readyState >= 2 && typeof jsQR !== 'undefined') {
+            canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+            ctx2.drawImage(video, 0, 0);
+            var id = ctx2.getImageData(0, 0, canvas.width, canvas.height);
+            var res = jsQR(id.data, id.width, id.height, { inversionAttempts: 'attemptBoth' });
+            if (res) onDetected(res.data);
+          }
+          setTimeout(tick, 300);
+        }
+        tick();
+      }).catch(function(err) {
+        status.textContent = 'カメラにアクセスできません: ' + err.message;
+      });
+    }
+  };
+
+  // DataURL から QR を全件デコード（BarcodeDetector優先、jsQRフォールバック）
+  // 戻り値: JSON文字列の配列 ["qr1data","qr2data",...] または null
+  // BarcodeDetector は1枚の写真から複数QRを同時検出できる（Shift-JIS対応）
+  // ファイル入力から直接読み込み＋QRデコード（Dart側でのfiles[0]アクセスを回避）
+  window.decodeQRFromInput = async function() {
+    var input = window._qrFileInput;
+    if (!input || !input.files || input.files.length === 0) {
+      if (window._qrDecodeCallback) { window._qrDecodeCallback(null); window._qrDecodeCallback = null; }
+      return;
+    }
+    var file = input.files[0];
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      window.decodeQRFromDataURL(e.target.result);
+    };
+    reader.onerror = function() {
+      if (window._qrDecodeCallback) { window._qrDecodeCallback(null); window._qrDecodeCallback = null; }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  window.decodeQRFromDataURL = async function(dataURL, callback) {
+    // BarcodeDetector（Chrome/Android ネイティブ）
+    if ('BarcodeDetector' in window) {
+      try {
+        var detector = new BarcodeDetector({ formats: ['qr_code'] });
+        var img = new Image();
+        await new Promise(function(resolve, reject) {
+          img.onload = resolve; img.onerror = reject; img.src = dataURL;
+        });
+        var bitmap = await createImageBitmap(img);
+        var results = await detector.detect(bitmap);
+        if (results.length > 0) {
+          // 複数QRを全件返す
+          var val = JSON.stringify(results.map(function(r) { return r.rawValue; }));
+          if (window._qrDecodeCallback) { window._qrDecodeCallback(val); window._qrDecodeCallback = null; }
+          return;
+        }
+      } catch(e) { console.warn('BarcodeDetector error:', e); }
+    }
+    // jsQR フォールバック（1件のみ）
+    var img2 = new Image();
+    img2.onload = function() {
+      try {
+        var MAX = 2000, w = img2.width, h = img2.height;
+        if (w > MAX || h > MAX) {
+          if (w > h) { h = Math.round(h*MAX/w); w = MAX; }
+          else { w = Math.round(w*MAX/h); h = MAX; }
+        }
+        var c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        var ctx = c.getContext('2d');
+        ctx.drawImage(img2, 0, 0, w, h);
+        var id = ctx.getImageData(0, 0, w, h);
+        var res = jsQR(id.data, id.width, id.height, { inversionAttempts: 'attemptBoth' });
+        var val = res ? JSON.stringify([res.data]) : null;
+        if (window._qrDecodeCallback) { window._qrDecodeCallback(val); window._qrDecodeCallback = null; }
+      } catch(e) {
+        console.error('jsQR error:', e);
+        if (window._qrDecodeCallback) { window._qrDecodeCallback(null); window._qrDecodeCallback = null; }
+      }
+    };
+    img2.onerror = function(e) {
+      console.error('Image load error:', e);
+      if (window._qrDecodeCallback) { window._qrDecodeCallback(null); window._qrDecodeCallback = null; }
+    };
+    img2.src = dataURL;
+  };
+
+  /*
+  (function() {
+    var _overlay = null;
+    var _stream  = null;
+    var _active  = false;
+    var _timer   = null;
+
+    // BarcodeDetector（Chrome/Android ネイティブ）があれば優先使用
+    // Shift-JIS などのエンコードも自動処理してくれる
+    var _detector = null;
+    if ('BarcodeDetector' in window) {
+      try { _detector = new BarcodeDetector({ formats: ['qr_code'] }); } catch(e) {}
+    }
+
+    // BarcodeDetector でフレームを検出
+    async function detectWithNative(video) {
+      try {
+        var results = await _detector.detect(video);
+        return results.length > 0 ? results[0].rawValue : null;
+      } catch(e) { return null; }
+    }
+
+    // jsQR フォールバック（Shift-JIS は文字化けする可能性あり）
+    function detectWithJsQR(video, canvas, ctx) {
+      if (video.readyState < 2) return null;
+      canvas.width  = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0);
+      try {
+        var id = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        var res = jsQR(id.data, id.width, id.height, { inversionAttempts: 'attemptBoth' });
+        return res ? res.data : null;
+      } catch(e) { return null; }
+    }
+
+    window.startQRScanner = function(maxScans, onDone) {
+      if (_overlay) return;
+      var scanned = [];
+      var paused  = false; // 検出直後の連続スキャン抑制
+
+      // ---- overlay ----
+      var ov = document.createElement('div');
+      ov.style.cssText = 'position:fixed;inset:0;background:#000;z-index:99999;display:flex;flex-direction:column;align-items:center;font-family:sans-serif;';
+
+      // header
+      var hdr = document.createElement('div');
+      hdr.style.cssText = 'width:100%;display:flex;align-items:center;justify-content:space-between;padding:14px 20px;box-sizing:border-box;background:rgba(0,0,0,0.7);';
+      var title = document.createElement('div');
+      title.style.cssText = 'color:#fff;font-size:15px;font-weight:bold;';
+      title.textContent = 'QRコードをかざしてください';
+      var closeBtn = document.createElement('button');
+      closeBtn.textContent = '✕';
+      closeBtn.style.cssText = 'background:none;border:none;color:#fff;font-size:22px;cursor:pointer;padding:4px 10px;';
+      closeBtn.onclick = function() { _stop(null); };
+      hdr.appendChild(title);
+      hdr.appendChild(closeBtn);
+      ov.appendChild(hdr);
+
+      // counter
+      var counter = document.createElement('div');
+      counter.style.cssText = 'display:flex;gap:10px;padding:10px 0 6px;';
+      function updateCounter() {
+        counter.innerHTML = '';
+        for (var i = 0; i < maxScans; i++) {
+          var dot = document.createElement('div');
+          var done = i < scanned.length;
+          dot.style.cssText = 'width:38px;height:38px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:bold;' +
+            (done ? 'background:#1976D2;color:#fff;' : 'background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.4);');
+          dot.textContent = done ? '✓' : (i + 1);
+          counter.appendChild(dot);
+        }
+      }
+      updateCounter();
+      ov.appendChild(counter);
+
+      // video wrapper
+      var vwrap = document.createElement('div');
+      vwrap.style.cssText = 'position:relative;width:100%;flex:1;overflow:hidden;';
+      var video = document.createElement('video');
+      video.autoplay = true;
+      video.playsInline = true;
+      video.muted = true;
+      video.style.cssText = 'width:100%;height:100%;object-fit:cover;';
+      vwrap.appendChild(video);
+
+      // スキャン枠
+      var scanBox = document.createElement('div');
+      scanBox.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-60%);width:240px;height:240px;border:3px solid #42A5F5;border-radius:14px;box-shadow:0 0 0 9999px rgba(0,0,0,0.5);pointer-events:none;';
+      vwrap.appendChild(scanBox);
+
+      // 枠の四隅装飾
+      ['top:0;left:0;border-top:4px solid #fff;border-left:4px solid #fff;border-top-left-radius:10px;',
+       'top:0;right:0;border-top:4px solid #fff;border-right:4px solid #fff;border-top-right-radius:10px;',
+       'bottom:0;left:0;border-bottom:4px solid #fff;border-left:4px solid #fff;border-bottom-left-radius:10px;',
+       'bottom:0;right:0;border-bottom:4px solid #fff;border-right:4px solid #fff;border-bottom-right-radius:10px;'
+      ].forEach(function(css) {
+        var corner = document.createElement('div');
+        corner.style.cssText = 'position:absolute;width:24px;height:24px;' + css;
+        scanBox.appendChild(corner);
+      });
+
+      // フラッシュ
+      var flash = document.createElement('div');
+      flash.style.cssText = 'position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;';
+      vwrap.appendChild(flash);
+
+      // ステータステキスト
+      var status = document.createElement('div');
+      status.style.cssText = 'position:absolute;bottom:14px;left:0;right:0;text-align:center;color:#fff;font-size:13px;text-shadow:0 1px 4px rgba(0,0,0,0.8);padding:0 16px;';
+      status.textContent = _detector ? 'スキャン中...' : 'スキャン中...（jsQR使用）';
+      vwrap.appendChild(status);
+      ov.appendChild(vwrap);
+
+      // footer
+      var footer = document.createElement('div');
+      footer.style.cssText = 'width:100%;padding:14px 24px 20px;box-sizing:border-box;background:rgba(0,0,0,0.7);';
+      var doneBtn = document.createElement('button');
+      doneBtn.style.cssText = 'width:100%;padding:14px;background:#388E3C;color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:bold;cursor:pointer;opacity:0.35;';
+      doneBtn.textContent = '完了（0/' + maxScans + '）';
+      doneBtn.disabled = true;
+      doneBtn.onclick = function() { _stop(scanned); };
+      footer.appendChild(doneBtn);
+      ov.appendChild(footer);
+
+      document.body.appendChild(ov);
+      _overlay = ov;
+
+      var canvas = document.createElement('canvas');
+      var ctx = canvas.getContext('2d');
+
+      function onDetected(data) {
+        if (!data || scanned.indexOf(data) !== -1 || paused) return;
+        paused = true;
+        scanned.push(data);
+        // フラッシュ
+        flash.style.transition = 'none';
+        flash.style.opacity = '0.75';
+        setTimeout(function() {
+          flash.style.transition = 'opacity 0.25s';
+          flash.style.opacity = '0';
+        }, 80);
+        // UI更新
+        updateCounter();
+        doneBtn.textContent = '完了（' + scanned.length + '/' + maxScans + '）';
+        doneBtn.disabled = false;
+        doneBtn.style.opacity = '1';
+        if (scanned.length >= maxScans) {
+          status.textContent = 'すべて読み取り完了！';
+          setTimeout(function() { _stop(scanned); }, 500);
+          return;
+        }
+        status.textContent = scanned.length + '枚読み取り！次のQRをかざしてください';
+        setTimeout(function() {
+          paused = false;
+          status.textContent = 'スキャン中...';
+        }, 1200);
+      }
+
+      // カメラ起動
+      navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }
+      }).then(function(stream) {
+        _stream = stream;
+        video.srcObject = stream;
+        _active = true;
+
+        if (_detector) {
+          // BarcodeDetector ループ
+          async function tickNative() {
+            if (!_active) return;
+            if (!paused && video.readyState >= 2) {
+              var data = await detectWithNative(video);
+              onDetected(data);
+            }
+            _timer = setTimeout(tickNative, 200);
+          }
+          tickNative();
+        } else {
+          // jsQR ループ
+          function tickJsQR() {
+            if (!_active) return;
+            if (!paused) {
+              var data = detectWithJsQR(video, canvas, ctx);
+              onDetected(data);
+            }
+            _timer = setTimeout(tickJsQR, 200);
+          }
+          tickJsQR();
+        }
+      }).catch(function(err) {
+        status.textContent = 'カメラにアクセスできません: ' + err.message;
+      });
+
+      function _stop(result) {
+        _active = false;
+        if (_timer) clearTimeout(_timer);
+        if (_stream) { _stream.getTracks().forEach(function(t) { t.stop(); }); _stream = null; }
+        if (_overlay) { _overlay.remove(); _overlay = null; }
+        if (onDone) onDone(result && result.length > 0 ? result.join('\n---QR---\n') : null);
+      }
+    };
+
+    window.stopQRScanner = function() {
+      _active = false;
+      if (_timer) clearTimeout(_timer);
+      if (_stream) { _stream.getTracks().forEach(function(t) { t.stop(); }); _stream = null; }
+      if (_overlay) { _overlay.remove(); _overlay = null; }
+    };
+  })();
+  </script>
+</head>
+<body>
+  <!--
+    You can customize the "flutter_bootstrap.js" script.
+    This is useful to provide a custom configuration to the Flutter loader
+    or to give the user feedback during the initialization process.
+
+    For more details:
+    * https://docs.flutter.dev/platform-integration/web/initialization
+  -->
+  <script>
+    // サービスワーカーを完全無効化 - 常にサーバーから最新版を取得
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(registrations) {
+        for (let registration of registrations) {
+          registration.unregister();
+        }
+      });
+      // 新規登録もブロック
+      navigator.serviceWorker.register = function() {
+        return Promise.resolve();
+      };
+    }
+  </script>
+  <script src="flutter_bootstrap.js?v=DEPLOY_TIMESTAMP" async></script>
+</body>
+</html>

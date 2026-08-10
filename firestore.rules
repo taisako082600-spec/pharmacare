@@ -1,0 +1,241 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ヘルパー関数
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    function isAdmin() {
+      return isSignedIn() && getUserData().isAdmin == true;
+    }
+    function isFacilityAdmin() {
+      return isSignedIn() && getUserData().role == 'facility_admin';
+    }
+    function belongsToFacility(facilityId) {
+      return isSignedIn() && (
+        getUserData().facilityId == facilityId ||
+        facilityId in getUserData().facilityIds
+      );
+    }
+
+    // 家族ロール判定ヘルパー
+    function isLinkedFamily(patientId) {
+      return isSignedIn() &&
+        getUserData().role == '家族' &&
+        getUserData().linkedPatientId == patientId;
+    }
+
+    // ユーザー
+    match /users/{uid} {
+      allow read: if isSignedIn();
+      allow create: if request.auth.uid == uid;
+      allow update: if request.auth.uid == uid || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // 施設
+    match /facilities/{facilityId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.createdBy == request.auth.uid;
+      allow update: if isAdmin() || (isFacilityAdmin() && belongsToFacility(facilityId));
+      allow delete: if isAdmin();
+    }
+
+    // 招待コード
+    match /invite_codes/{codeId} {
+      allow read: if isSignedIn() && (
+        request.auth.uid == resource.data.createdBy ||
+        belongsToFacility(resource.data.facilityId) ||
+        isAdmin()
+      );
+      // register_screen.dartの新規施設作成フローでは、施設作成 → 自分のusers.facilityId更新 →
+      // 招待コード発行、の順で書き込むため、この時点で既に belongsToFacility が真になる。
+      // 以前は isFacilityAdmin()(廃止ロール)||isAdmin() のみを許可しており、新規施設作成の
+      // 度に招待コード発行が失敗 → register_screen.dartのロールバックで施設ごと削除される
+      // という重大な不具合になっていた(2026-07-19に発見・修正)。
+      allow create: if isSignedIn() && (
+        belongsToFacility(request.resource.data.facilityId) || isFacilityAdmin() || isAdmin()
+      );
+      // 「使用済みにする」以外の変更(facilityIdの付け替え等)をさせないよう制限する。
+      // 以前は isSignedIn() のみで、サインイン済みなら誰でも他施設のコードを書き換えられた。
+      allow update: if isSignedIn() && (
+        isAdmin() || (
+          resource.data.used == false &&
+          request.resource.data.used == true &&
+          request.resource.data.facilityId == resource.data.facilityId &&
+          request.resource.data.code == resource.data.code
+        )
+      );
+      allow delete: if isAdmin();
+    }
+
+    // 連携申請
+    match /connection_requests/{requestId} {
+      allow read: if isSignedIn() && (
+        resource.data.pharmacistId == request.auth.uid ||
+        belongsToFacility(resource.data.facilityId) ||
+        isAdmin()
+      );
+      allow create: if isSignedIn() && request.resource.data.pharmacistId == request.auth.uid;
+      allow update: if isAdmin() ||
+        belongsToFacility(resource.data.facilityId); // 施設管理者が承認/拒否
+      allow delete: if isSignedIn() && resource.data.pharmacistId == request.auth.uid; // 申請者が取り消し
+    }
+
+    // 患者
+    match /patients/{patientId} {
+      allow read: if isSignedIn() && (
+        belongsToFacility(resource.data.facilityId) || isAdmin() || isLinkedFamily(patientId)
+      );
+      allow create: if isSignedIn() && (belongsToFacility(request.resource.data.facilityId) || isAdmin());
+      allow update: if isSignedIn() && (belongsToFacility(resource.data.facilityId) || isAdmin());
+      allow delete: if isAdmin() || (isFacilityAdmin() && belongsToFacility(resource.data.facilityId));
+
+      match /medicines/{medicineId} {
+        allow read: if isSignedIn() && (belongsToFacility(
+          get(/databases/$(database)/documents/patients/$(patientId)).data.facilityId
+        ) || isLinkedFamily(patientId) || isAdmin());
+        allow write: if isSignedIn() && (belongsToFacility(
+          get(/databases/$(database)/documents/patients/$(patientId)).data.facilityId
+        ) || isAdmin());
+      }
+
+      match /vitals/{vitalId} {
+        allow read: if isSignedIn() && (belongsToFacility(
+          get(/databases/$(database)/documents/patients/$(patientId)).data.facilityId
+        ) || isLinkedFamily(patientId) || isAdmin());
+        allow write: if isSignedIn() && (belongsToFacility(
+          get(/databases/$(database)/documents/patients/$(patientId)).data.facilityId
+        ) || isAdmin());
+      }
+
+      match /records/{recordId} {
+        allow read, write: if isSignedIn() && (belongsToFacility(
+          get(/databases/$(database)/documents/patients/$(patientId)).data.facilityId
+        ) || isAdmin());
+      }
+
+      match /visits/{visitId} {
+        allow read: if isSignedIn() && (belongsToFacility(
+          get(/databases/$(database)/documents/patients/$(patientId)).data.facilityId
+        ) || isLinkedFamily(patientId) || isAdmin());
+        allow write: if isSignedIn() && (belongsToFacility(
+          get(/databases/$(database)/documents/patients/$(patientId)).data.facilityId
+        ) || isAdmin());
+
+        match /medicines/{medicineId} {
+          allow read, write: if isSignedIn() && (belongsToFacility(
+            get(/databases/$(database)/documents/patients/$(patientId)).data.facilityId
+          ) || isAdmin());
+
+          match /intake_logs/{logId} {
+            allow read, write: if isSignedIn() && (belongsToFacility(
+              get(/databases/$(database)/documents/patients/$(patientId)).data.facilityId
+            ) || isAdmin());
+          }
+        }
+
+        match /side_effect_checks/{checkId} {
+          allow read, write: if isSignedIn() && (belongsToFacility(
+            get(/databases/$(database)/documents/patients/$(patientId)).data.facilityId
+          ) || isAdmin());
+        }
+      }
+
+      // OTCトリアージレコード。otc_triage_form_screen.dart が
+      // patients/{patientId}/otc_triage_records に直接書き込むため、
+      // visits の下ではなく patients 直下にマッチさせる(実際の書き込みパスと一致させる)。
+      match /otc_triage_records/{triageId} {
+        allow read: if isSignedIn() && (belongsToFacility(
+          get(/databases/$(database)/documents/patients/$(patientId)).data.facilityId
+        ) || isAdmin());
+        allow create: if isSignedIn() && (belongsToFacility(
+          get(/databases/$(database)/documents/patients/$(patientId)).data.facilityId
+        ) || isAdmin());
+        allow update: if isSignedIn() && (belongsToFacility(
+          get(/databases/$(database)/documents/patients/$(patientId)).data.facilityId
+        ) || isAdmin());
+      }
+    }
+
+    // side_effect_checks コレクショングループ（患者一覧バッジ用）
+    match /{path=**}/side_effect_checks/{checkId} {
+      allow read: if isSignedIn() && (belongsToFacility(resource.data.facilityId) || isAdmin());
+    }
+
+    // チャット
+    // 全ての箇所に || isAdmin() を付けているのは、管理画面の「この施設の画面を確認する」
+    // (admin_dashboard_screen.dart)がなりすまし表示であり、Firestoreルールは実際にサインイン
+    // している管理者本人のusersドキュメント(facilityId未設定なことが多い)で判定するため。
+    // isAdmin()のOR分岐がないと、管理者がこの機能で入った瞬間にほぼ全ての画面でpermission-denied
+    // になる(2026-07-19に発見・修正)。
+    match /rooms/{roomId} {
+      allow read: if isSignedIn() && (belongsToFacility(resource.data.facilityId) || isAdmin());
+      // create/updateを分離: 新規作成時はresourceがまだ存在せずresource.data.facilityIdが
+      // 評価できないため、常にfalseになり新規ルーム作成自体が弾かれてしまう不具合があった。
+      // createはrequest.resource(書き込み後の状態)で判定する。
+      allow create: if isSignedIn() && (belongsToFacility(request.resource.data.facilityId) || isAdmin());
+      allow update: if isSignedIn() && (belongsToFacility(resource.data.facilityId) || isAdmin());
+
+      match /messages/{messageId} {
+        allow read: if isSignedIn() && (belongsToFacility(
+          get(/databases/$(database)/documents/rooms/$(roomId)).data.facilityId
+        ) || isAdmin());
+        allow create: if isSignedIn() && request.resource.data.senderUid == request.auth.uid &&
+          (belongsToFacility(get(/databases/$(database)/documents/rooms/$(roomId)).data.facilityId) || isAdmin());
+        allow update, delete: if false;
+      }
+    }
+
+    // 監査ログ（管理者のみ読取）
+    match /audit_logs/{logId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    // 薬剤知識ベース（②医薬品注意点表示 B案）
+    // Goプロキシはサービスアカウント(Admin SDK)で直接アクセスするためこれらのルールを経由しない。
+    // ここは Flutter クライアント（管理画面での閲覧・手動解決フロー）向けのアクセス制御。
+
+    // 商品名⇔一般名マスタ（薬価基準収載品目リストから定期取り込み）。
+    // Goプロキシ(Admin SDK)がこのルールを経由せず読み書きし、Flutter側は現状どの画面からも
+    // 参照していないため、isSignedIn()で全ユーザーに公開する必要がない(isAdmin()に限定)。
+    match /drug_master/{docId} {
+      allow read, write: if isAdmin();
+    }
+
+    // 一般名ごとの添付文書ナレッジ（9.2/9.3等のセクション抽出結果）
+    match /drug_knowledge_base/{genericName} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin(); // 手動整備(manual_needed解決)含む
+    }
+
+    // 名寄せ解決済みキャッシュ（入力文字列→一般名）
+    match /drug_name_aliases/{normalizedInput} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // 名寄せ未解決キュー（管理者レビュー専用、一般ユーザーには非公開）
+    match /unmatched_drug_names/{docId} {
+      allow read, write: if isAdmin();
+    }
+
+    // 添付文書取得の実需要ログ（名寄せは成功したがdrug_knowledge_baseに
+    // エントリが1件もない薬剤。管理者レビュー専用、一般ユーザーには非公開）
+    match /drug_fetch_requests/{genericName} {
+      allow read, write: if isAdmin();
+    }
+
+    // カレンダーイベント
+    match /events/{eventId} {
+      allow read: if isSignedIn() && (belongsToFacility(resource.data.facilityId) || isAdmin());
+      allow create: if isSignedIn() && (belongsToFacility(request.resource.data.facilityId) || isAdmin());
+      allow update, delete: if isSignedIn() && (belongsToFacility(resource.data.facilityId) || isAdmin());
+    }
+  }
+}
