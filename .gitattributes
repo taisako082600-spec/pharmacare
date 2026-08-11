@@ -1,0 +1,34 @@
+# 改行コードの正規化設定
+#
+# 目的: Windows環境で開発しているため、gitの標準挙動ではチェックアウト時に
+# CRLFへ変換され、全ファイルが「変更あり」として検出されてしまう。
+# リポジトリ内は常にLFで保存し、作業ディレクトリ側の差分をノイズにしない。
+
+# デフォルト: テキストとして扱い、リポジトリ内ではLFで保存する
+* text=auto eol=lf
+
+# --- Windows専用スクリプトはCRLFを維持する（CRLFでないと動作しないため） ---
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+*.ps1   text eol=crlf
+
+# --- バイナリ（差分計算・改行変換の対象外にする） ---
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.pdf   binary
+*.xlsx  binary
+*.xls   binary
+*.docx  binary
+*.exe   binary
+*.dll   binary
+*.so    binary
+*.dylib binary
+*.jar   binary
+*.zip   binary
+*.ttf   binary
+*.otf   binary
+*.woff  binary
+*.woff2 binary
