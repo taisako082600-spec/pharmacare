@@ -88,12 +88,14 @@ OTCトリアージフォーム（`otc_triage_form_screen.dart`）からのリク
 
 ## Flutter側との接続
 
-`lib/services/ai_drug_service.dart` はデフォルトで `http://localhost:8081` を叩く。
-本番Cloud Run URLが決まったら、ビルド時に上書きする:
+`lib/services/ai_drug_service.dart` はデフォルトで `http://localhost:8081` を叩く(ローカル開発用のデフォルト値、変更不要)。
+本番ビルドはCloud Run URLを`--dart-define`で上書きする(**本番URLはリポジトリに書かず、手元メモ/`.env`で管理**):
 
 ```bash
-flutter build web --dart-define=LLM_PROXY_URL=https://your-cloud-run-url.a.run.app
+flutter build web --dart-define=LLM_PROXY_URL=https://<本番Cloud RunのURL>
 ```
+
+**✅ 本番デプロイ・疎通確認済み(2026-07-20)**。本番Flutterビルドは既にこの方式でCloud Run URLを埋め込み済み。
 
 プロキシに接続できない場合は、Flutter側でモック応答（服薬指導）またはレッドフラッグのみの簡易判定（トリアージ）にフォールバックする。
 
@@ -113,8 +115,9 @@ docker run -p 8080:8080 \
 
 ## 未実装・今後の課題
 
-- **Cloud Run デプロイ**: Dockerfileは用意済み・Docker実機検証済み。実際のCloud Runへのデプロイ（GCP課金発生）は別途確認してから
+- **Cloud Run デプロイ**: ✅ 2026-07-20 本番デプロイ完了・稼働中(`asia-northeast1`、`min-instances=0`)。Firestore認証はSecret Managerにサービスアカウント鍵をボリュームマウントする方式(`GOOGLE_APPLICATION_CREDENTIALS`が既存コードの前提と一致するため、メタデータサーバー方式より変更が少なく済んだ)
+- **`ANTHROPIC_API_KEY`**: 意図的に未設定のまま運用中。判定ロジック(`/v1/triage`, `/v1/analyze-medication`の薬剤ごとの注意点表示)はAPIキーなしで完全に機能する設計のため、契約は保留してもサービスは成立する。設定すればAI解説文・複数薬剤の重複統合機能が有効化される
 - **料金定数の実値**: ✅ 2026-07-16 確認済み。claude-haiku-4-5 は Base Input $1/MTok、Output $5/MTok、Cache Write(5分) $1.25/MTok、Cache Read $0.10/MTok。モデル変更時は再確認すること
 - **プロンプトキャッシュの実効性**: ✅ 2026-07-16確認。GA機能でbetaヘッダー不要だが、claude-haiku-4-5は最低4096トークンないとキャッシュされない。現状のシステムプロンプトは閾値未満のため、OTC症状ナレッジをシステムプロンプトに組み込むまでは実質無効
 - **施設単位のトークン予算**: ✅ 実装済み（`facility_budget.go`）。施設ごとの上限＋全体の安全上限の二層構成
-- **Dockerの実機検証**: この環境にDocker未導入。導入後に `docker build`/`docker run` で動作確認が必要
+- **Dockerの実機検証**: ✅ ローカルDocker検証(2026-07-16)に加え、本番はDockerを介さず`gcloud builds submit`(Cloud Build)でビルド・Artifact Registryにプッシュしている

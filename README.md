@@ -68,7 +68,7 @@ Firebase IDトークンのRS256署名検証は、外部SDKに依存せず標準�
 | 項目 | 状態 |
 |---|---|
 | アプリ本体 | 完成（v1.2） |
-| LLMプロキシ | 実装完了・Docker実機検証済み。Cloud Runへのデプロイは未実施 |
+| LLMプロキシ | Cloud Runへ本番デプロイ・稼働中（Firestore連携含む。Anthropic APIキーは未契約のためAI解説文・重複統合機能のみ保留） |
 | テスト運用 | 準備中 |
 
 > **セキュリティに関する注記**: 本リポジトリの `FirebaseOptions` に含まれるAPIキーは、Firebaseの設計上クライアントに埋め込まれる公開値です。アクセス制御は [`firestore.rules`](firestore.rules) のセキュリティルールで担保しています。
@@ -242,7 +242,7 @@ llm-proxy/                         # Go製LLMプロキシ（Claude API連携・�
 - [ ] QRコード読み込み - 薬剤パッケージ自動登録
 - [ ] 処方箋電子化 - 医療機関との連携
 - [ ] ビデオ通話 - リアルタイム相談
-- [x] AIによる服薬指導・症状トリアージ（llm-proxy 経由、Cloud Runデプロイは未実施）
+- [x] AIによる服薬指導・症状トリアージ（llm-proxy 経由、Cloud Run本番稼働中）
 - [ ] iOS/Android アプリ化
 
 ## ライセンス
