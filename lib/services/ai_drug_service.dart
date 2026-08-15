@@ -11,7 +11,10 @@ class AiDrugService {
   factory AiDrugService() => _instance;
   AiDrugService._internal();
 
-  // Goプロキシのベースエンドポイント。本番Cloud Run URLが確定したら差し替える。
+  // Goプロキシのベースエンドポイント。
+  // ここに書いてあるのはローカル開発用のデフォルト値。本番ビルドは
+  // `--dart-define=LLM_PROXY_URL=...` でCloud RunのURLを注入して上書きする
+  // (本番URLはリポジトリに書かず、ビルド時に渡す)。
   static const String _proxyBaseUrl = String.fromEnvironment(
     'LLM_PROXY_URL',
     defaultValue: 'http://localhost:8081',

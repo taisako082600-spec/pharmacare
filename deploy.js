@@ -1,4 +1,4 @@
-const { GoogleAuth } = require('./node_modules/google-auth-library');
+const { getAuth } = require('./auth_helper');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
@@ -8,7 +8,6 @@ const zlib = require('zlib');
 const PROJECT_ID = 'pharmacist-app-646df';
 const SITE_ID = 'pharmacist-app-646df';
 const BUILD_DIR = path.join(__dirname, 'build', 'web');
-const KEY_FILE = 'C:/Users/OWNER/Downloads/pharmacist-app-646df-firebase-adminsdk-fbsvc-814ff25523.json';
 const TIMESTAMP = Date.now();
 
 // main.dart.js をタイムスタンプ付きファイル名にリネームしてキャッシュをバイパス
@@ -72,11 +71,10 @@ async function deploy() {
   console.log('Patching build files...');
   patchBuildFiles();
   console.log('Getting auth token...');
-  const auth = new GoogleAuth({
-    keyFile: KEY_FILE,
-    scopes: ['https://www.googleapis.com/auth/firebase', 'https://www.googleapis.com/auth/cloud-platform']
-  });
-  const token = await auth.getAccessToken();
+  const { token, extraHeaders } = await getAuth([
+    'https://www.googleapis.com/auth/firebase',
+    'https://www.googleapis.com/auth/cloud-platform',
+  ]);
   console.log('Token obtained.');
 
   // Step 1: Create a new version
@@ -87,7 +85,8 @@ async function deploy() {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      ...extraHeaders
     }
   }, {
     config: {
@@ -132,7 +131,8 @@ async function deploy() {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      ...extraHeaders
     }
   }, { files: fileHashes });
 
@@ -161,7 +161,8 @@ async function deploy() {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/octet-stream',
-          'Content-Length': gzipped.length
+          'Content-Length': gzipped.length,
+          ...extraHeaders
         }
       }, (res) => {
         let body = '';
@@ -185,7 +186,8 @@ async function deploy() {
     method: 'PATCH',
     headers: {
       'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      ...extraHeaders
     }
   }, { status: 'FINALIZED' });
 
@@ -203,7 +205,8 @@ async function deploy() {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      ...extraHeaders
     }
   }, {});
 

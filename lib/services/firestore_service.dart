@@ -1,6 +1,22 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'audit_service.dart';
 
+/// ⚠️ このクラスは現在 28メソッド中 3つしか使われていない
+/// (`addFacility` / `assignPharmacistToFacility` / `unassignPharmacistFromFacility`、
+/// いずれも `admin_facilities_screen.dart` から)。残りは呼び出し元ゼロの死んだコード。
+/// 2026-08-16 の全体チェックで判明した注意点:
+///
+///  1. **複合インデックス未整備**: `getRoomsForFacility`(facilityId== + orderBy updatedAt)、
+///     `getEvents`(facilityId== + orderBy date)、`getPharmacistsForFacility`
+///     (role== + facilityIds arrayContains)は、本番Firestoreに実際にクエリを投げて
+///     FAILED_PRECONDITION になることを確認済み。**そのまま画面に繋ぐと即エラーになる。**
+///     このプロジェクトはインデックス定義を持たない方針なので、使うなら単一の where で
+///     取得してクライアント側でソート/フィルタする形に書き換えること。
+///  2. **削除処理の重複**: `deleteUser` / `deletePatient` は、実際に使われている
+///     `admin_users_screen.dart` 側の実装と別物。参照クリーンアップ漏れの修正は
+///     そちらにしか入っていない可能性があるため、こちらを復活させる場合は要確認。
+///
+/// 使う予定がないなら削除してよい。
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 

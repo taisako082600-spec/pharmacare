@@ -1,4 +1,4 @@
-# PharmaCore LLMプロキシ
+# PharmaCare LLMプロキシ
 
 Flutter (`ai_drug_service.dart`) から呼び出される、Claude API 連携用のGo製プロキシサーバー。
 
@@ -57,7 +57,9 @@ go test -v ./...
 すべて `FIREBASE_PROJECT_ID` 設定時は `Authorization: Bearer <Firebase ID Token>` 必須（`/healthz`, `/ping` を除く）。
 
 ### `GET /healthz` / `GET /ping`
-稼働確認 + トークン予算の消費状況。認証不要。**Cloud Run本番では `/healthz` がGoogle側エッジ層に横取りされ、コンテナまで届かないことを実機確認済み（2026-07-20）。原因はGoogle側の内部挙動で特定不能。本番の死活監視には `/ping` を使うこと。** ローカル開発では両方使える。
+稼働確認 + トークン予算の消費状況。認証不要。
+
+**Cloud Run では末尾が `z` で終わるパスが予約URLパスとして扱われ、エッジ層で処理されるためコンテナに到達しません**（公式ドキュメント[「Cloud Run の既知の問題」](https://cloud.google.com/run/docs/issues)に `/eventlog`・`/_ah/` で始まるパスと並んで記載）。`/healthz`・`/livez`・`/readyz` など Kubernetes 慣習の命名はすべて該当します。**本番の死活監視には末尾が `z` にならない `/ping` を使ってください**（2026-07-20に実機でも確認済み）。ローカル開発では両方使えます。
 
 ### `POST /v1/analyze-medication`
 `ai_drug_service.dart` の `analyzeVisitMedicines` と対応。

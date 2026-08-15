@@ -48,6 +48,12 @@ class AuditService {
     }
   }
 
+  // ⚠️ 以下3つの取得メソッドは現在どこからも呼ばれていない。
+  // いずれも「where + 別フィールドのorderBy」で複合インデックスを要求するため、
+  // 本番Firestoreに実際に投げると FAILED_PRECONDITION になることを確認済み
+  // (2026-08-16)。画面に繋ぐ場合は、単一の where で取得してクライアント側で
+  // ソートする形に書き換えること(このプロジェクトはインデックス定義を持たない方針)。
+
   /// ユーザーの監査ログを取得
   Stream<QuerySnapshot> getAuditLogsForUser(String userId) {
     return _db

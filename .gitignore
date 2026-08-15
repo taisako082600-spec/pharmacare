@@ -81,9 +81,18 @@ triage_source_extracts/
 
 # --- 個人的な文書 (絶対に公開しない) ---
 職務経歴書*.md
+職務経歴書*.docx
+職務経歴書*.pdf
 転職ロード*.md
 並行実行計画*.md
 カジュアル面談*.md
+業務委託_応募文面.md
+面談準備メモ.md
+ターゲット2社_深堀り.md
+ツール理解_*.md
+理解_*.md
+理解_第*.html
+zenn_articles/
 ACTION_PLAN_90days.md
 GIT_SETUP_手順.md
 CLAUDE_CODE_引き継ぎ*.md
@@ -91,6 +100,15 @@ PharmaCore_Goプロキシ_引き継ぎブリーフ.md
 Go基本まとめ*.docx
 1_git初期化.bat
 2_GitHubへ公開.bat
+ロードマップ*.md
+roadmap.html
+実行計画_*.md
+応募経路と時期.md
+申込導線_URL一覧.md
+調査計画_*.md
+転職ルート比較_*.md
+改善課題ストック.md
+理解_PDF/
 
 # 内部向けドキュメント
 HOW_TO_UPDATE_MARKETING.md

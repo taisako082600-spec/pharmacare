@@ -42,10 +42,11 @@ func main() {
 	mux.HandleFunc("/v1/triage", requireAuth(firebaseProjectID, srv.triageHandler))
 	mux.HandleFunc("/v1/admin/fetch-drug-label", requireAuth(firebaseProjectID, srv.adminFetchDrugLabelHandler))
 	mux.HandleFunc("/healthz", srv.healthHandler)
-	// Cloud Run (*.run.app) のエッジ層は "/healthz" という文字列を予約パス扱いし、
-	// コンテナに転送せずGoogle自前の404ページを返すことを実機検証で確認した(2026-07-20)。
-	// /v1/triage 等の他パスは正常に転送される。原因はGoogle側の内部挙動のため
-	// 特定不能だが、回避策として同じヘルスチェックを /ping にも登録しておく。
+	// Cloud Run は末尾が "z" のパスを予約URLパスとして扱い、エッジ層で処理するため
+	// コンテナに到達しない(公式ドキュメント「Cloud Run の既知の問題」に記載。
+	// https://cloud.google.com/run/docs/issues — /eventlog, /_ah/ で始まるパスと並記)。
+	// /healthz /livez /readyz など Kubernetes 慣習の命名はすべて該当するため、
+	// 本番の死活監視には末尾が z にならない /ping を使う(2026-07-20に実機でも確認)。
 	// ローカル開発・他ホスティング先では引き続き /healthz も使える。
 	mux.HandleFunc("/ping", srv.healthHandler)
 
@@ -65,11 +66,11 @@ func main() {
 		fmt.Println("警告: GOOGLE_APPLICATION_CREDENTIALS が未設定です。②医薬品注意点表示機能は無効化されます。")
 	}
 
-	fmt.Printf("PharmaCore LLMプロキシを起動しました: http://localhost:%s\n", port)
+	fmt.Printf("PharmaCare LLMプロキシを起動しました: http://localhost:%s\n", port)
 	fmt.Println("  POST /v1/analyze-medication")
 	fmt.Println("  POST /v1/triage")
 	fmt.Println("  POST /v1/admin/fetch-drug-label (管理者専用)")
-	fmt.Println("  GET  /healthz (Cloud Run本番ではGoogle側エッジに横取りされるため /ping を推奨)")
+	fmt.Println("  GET  /healthz (Cloud Runでは末尾zが予約パスのため到達しない。本番は /ping を使うこと)")
 	fmt.Println("  GET  /ping")
 
 	log.Fatal(http.ListenAndServe(":"+port, mux))

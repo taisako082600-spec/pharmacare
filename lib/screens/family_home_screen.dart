@@ -3,6 +3,19 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user_model.dart';
 import '../models/patient_model.dart';
 
+/// セクション単位の読み込み失敗表示。
+/// エラー時に何も出さずに畳んでしまうと「データが無い」のか「読めていない」のか
+/// 家族側から区別できないため、セクション名を添えて明示する。
+Widget _sectionError(String sectionLabel) {
+  return Padding(
+    padding: const EdgeInsets.symmetric(vertical: 8),
+    child: Text(
+      '$sectionLabel を読み込めませんでした',
+      style: const TextStyle(fontSize: 12, color: Colors.red),
+    ),
+  );
+}
+
 class FamilyHomeScreen extends StatelessWidget {
   final UserModel user;
   const FamilyHomeScreen({super.key, required this.user});
@@ -36,6 +49,22 @@ class FamilyHomeScreen extends StatelessWidget {
     return StreamBuilder<DocumentSnapshot>(
       stream: FirebaseFirestore.instance.collection('patients').doc(patientId).snapshots(),
       builder: (context, snap) {
+        // hasError を hasData より先に見る。逆にすると権限エラー等が起きたときに
+        // ローディング表示のまま止まり、家族側からは原因が分からなくなる(プロジェクト標準)。
+        if (snap.hasError) {
+          return Scaffold(
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(
+                  '情報を読み込めませんでした。\n通信状況をご確認のうえ、画面を開き直してください。\n\n${snap.error}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.red),
+                ),
+              ),
+            ),
+          );
+        }
         if (!snap.hasData) {
           return const Scaffold(body: Center(child: CircularProgressIndicator()));
         }
@@ -121,6 +150,7 @@ class _FamilyVisitSection extends StatelessWidget {
           .limit(3)
           .snapshots(),
       builder: (ctx, snap) {
+        if (snap.hasError) return _sectionError('現在の処方');
         final visits = snap.data?.docs ?? [];
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -204,6 +234,10 @@ class _FamilyVisitSection extends StatelessWidget {
                       StreamBuilder<QuerySnapshot>(
                         stream: doc.reference.collection('medicines').orderBy('createdAt').snapshots(),
                         builder: (ctx, medSnap) {
+                          if (medSnap.hasError) {
+                            return const Text('薬剤情報を読み込めませんでした',
+                                style: TextStyle(fontSize: 12, color: Colors.red));
+                          }
                           final meds = medSnap.data?.docs ?? [];
                           if (meds.isEmpty) return const SizedBox.shrink();
                           return Wrap(
@@ -253,6 +287,7 @@ class _FamilyVitalsSection extends StatelessWidget {
           .limit(1)
           .snapshots(),
       builder: (ctx, snap) {
+        if (snap.hasError) return _sectionError('最新のバイタル');
         if (!snap.hasData || snap.data!.docs.isEmpty) return const SizedBox.shrink();
         final data = snap.data!.docs.first.data() as Map<String, dynamic>;
         final recordedAt = (data['recordedAt'] as Timestamp?)?.toDate();
@@ -361,6 +396,7 @@ class _FamilyNextVisitSection extends StatelessWidget {
           .where('type', isEqualTo: '次回受診')
           .snapshots(),
       builder: (ctx, snap) {
+        if (snap.hasError) return _sectionError('次回の受診予定');
         if (!snap.hasData) return const SizedBox.shrink();
         final upcomingEvents = snap.data!.docs.where((doc) {
           final data = doc.data() as Map<String, dynamic>;

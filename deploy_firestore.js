@@ -1,9 +1,8 @@
 const fs = require('fs');
 const https = require('https');
-const { GoogleAuth } = require('google-auth-library');
+const { getAuth } = require('./auth_helper');
 
 const PROJECT_ID = 'pharmacist-app-646df';
-const KEY_FILE = 'C:/Users/OWNER/Downloads/pharmacist-app-646df-firebase-adminsdk-fbsvc-814ff25523.json';
 
 function request(options, body) {
   return new Promise((resolve, reject) => {
@@ -24,11 +23,10 @@ function request(options, body) {
 async function deployFirestoreRules() {
   const rulesContent = fs.readFileSync('./firestore.rules', 'utf8');
 
-  const auth = new GoogleAuth({
-    keyFile: KEY_FILE,
-    scopes: ['https://www.googleapis.com/auth/firebase', 'https://www.googleapis.com/auth/cloud-platform']
-  });
-  const token = await auth.getAccessToken();
+  const { token, extraHeaders } = await getAuth([
+    'https://www.googleapis.com/auth/firebase',
+    'https://www.googleapis.com/auth/cloud-platform',
+  ]);
 
   console.log('1/2 rulesetを作成中...');
   const createBody = JSON.stringify({ source: { files: [{ name: 'firestore.rules', content: rulesContent }] } });
@@ -36,7 +34,7 @@ async function deployFirestoreRules() {
     hostname: 'firebaserules.googleapis.com',
     path: `/v1/projects/${PROJECT_ID}/rulesets`,
     method: 'POST',
-    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', ...extraHeaders }
   }, createBody);
 
   if (createRes.status !== 200) {
@@ -55,7 +53,7 @@ async function deployFirestoreRules() {
     hostname: 'firebaserules.googleapis.com',
     path: `/v1/projects/${PROJECT_ID}/releases/cloud.firestore?updateMask=rulesetName`,
     method: 'PATCH',
-    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', ...extraHeaders }
   }, releaseBody);
 
   console.log(`  Status: ${releaseRes.status}`);
