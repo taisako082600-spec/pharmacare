@@ -68,14 +68,17 @@ function getAllFiles(dir, base = dir) {
 }
 
 async function deploy() {
-  console.log('Patching build files...');
-  patchBuildFiles();
+  // 認証はビルド成果物に触る前に済ませる。順序を逆にすると、認証で失敗したときに
+  // build/web だけ書き換わった中途半端な状態が残る(2026-08-16に鍵消失で実際に踏んだ)。
   console.log('Getting auth token...');
   const { token, extraHeaders } = await getAuth([
     'https://www.googleapis.com/auth/firebase',
     'https://www.googleapis.com/auth/cloud-platform',
   ]);
   console.log('Token obtained.');
+
+  console.log('Patching build files...');
+  patchBuildFiles();
 
   // Step 1: Create a new version
   console.log('Creating new version...');

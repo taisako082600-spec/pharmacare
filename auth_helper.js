@@ -1,17 +1,30 @@
 // デプロイスクリプト共通の認証ヘルパー。
 //
 // 経緯: 以前は Downloads 配下のサービスアカウントJSONを直接参照していたが、
-// そのファイルが削除されるとデプロイが一切できなくなる状態だった(2026-08-16に発覚)。
-// 鍵ファイルがあれば従来通りそれを使い、無ければ gcloud のログイン情報に
-// フォールバックすることで、どちらの環境でもデプロイできるようにしている。
+// Windowsのストレージセンサーが「ダウンロードフォルダー内の14日間開かれていない
+// ファイルを自動削除する」設定になっており、鍵が消えてデプロイが一切できなくなった
+// (2026-08-16に発覚)。ダウンロードフォルダーに置く限り再発するため、
+//
+//   1. 鍵は .secrets/ (プロジェクト配下・gitignore済み・自動削除の対象外) に置く
+//   2. 鍵が無ければ gcloud のログイン情報にフォールバックする
+//
+// の二段構えにしてある。鍵が無くてもデプロイできるので、鍵の管理自体が任意。
 //
 // 本番のCloud Run側はSecret Managerに別途鍵を保持しているため、この鍵ファイルの
 // 有無はCloud Runの稼働には影響しない。
 
 const fs = require('fs');
+const path = require('path');
 const { execSync } = require('child_process');
 
-// 従来の鍵ファイル(存在すれば優先して使う)
+const PROJECT_ID = 'pharmacist-app-646df';
+
+// 推奨の置き場所。ストレージセンサーの自動削除対象外で、gitignore済み。
+const SECRETS_DIR = path.join(__dirname, '.secrets');
+const PREFERRED_KEY_FILE = path.join(SECRETS_DIR, 'firebase-adminsdk.json');
+
+// 旧: ダウンロードフォルダー。ここに置くと自動削除で消えるため非推奨だが、
+// 既存環境との互換のため、あれば使う(使うときは警告を出す)。
 const LEGACY_KEY_FILE =
   'C:/Users/OWNER/Downloads/pharmacist-app-646df-firebase-adminsdk-fbsvc-814ff25523.json';
 
@@ -40,7 +53,19 @@ function tokenFromGcloud() {
   return null;
 }
 
-const PROJECT_ID = 'pharmacist-app-646df';
+/** 使えるサービスアカウント鍵のパスを返す。無ければ null。 */
+function findKeyFile() {
+  if (fs.existsSync(PREFERRED_KEY_FILE)) return PREFERRED_KEY_FILE;
+  if (fs.existsSync(LEGACY_KEY_FILE)) {
+    console.warn(
+      '⚠ サービスアカウント鍵がダウンロードフォルダーにあります。\n' +
+        '  Windowsのストレージセンサーが14日で自動削除するため、いずれ消えます。\n' +
+        `  ${PREFERRED_KEY_FILE} へ移動してください。`
+    );
+    return LEGACY_KEY_FILE;
+  }
+  return null;
+}
 
 /**
  * アクセストークンと、リクエストに付けるべき追加ヘッダーを取得する。
@@ -53,9 +78,10 @@ const PROJECT_ID = 'pharmacist-app-646df';
  * @returns {Promise<{token: string, extraHeaders: Object}>}
  */
 async function getAuth(scopes) {
-  if (fs.existsSync(LEGACY_KEY_FILE)) {
+  const keyFile = findKeyFile();
+  if (keyFile) {
     const { GoogleAuth } = require('./node_modules/google-auth-library');
-    const auth = new GoogleAuth({ keyFile: LEGACY_KEY_FILE, scopes });
+    const auth = new GoogleAuth({ keyFile, scopes });
     console.log('認証: サービスアカウントキーを使用');
     return { token: await auth.getAccessToken(), extraHeaders: {} };
   }
@@ -69,8 +95,8 @@ async function getAuth(scopes) {
   throw new Error(
     'デプロイ用の認証情報が見つかりません。次のいずれかを行ってください:\n' +
       '  1) gcloud auth login  を実行する（推奨。既にログイン済みならそのまま使えます）\n' +
-      `  2) サービスアカウントキーを ${LEGACY_KEY_FILE} に配置する`
+      `  2) サービスアカウントキーを ${PREFERRED_KEY_FILE} に配置する`
   );
 }
 
-module.exports = { getAuth, LEGACY_KEY_FILE };
+module.exports = { getAuth, PREFERRED_KEY_FILE, LEGACY_KEY_FILE };
