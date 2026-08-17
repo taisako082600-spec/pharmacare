@@ -22,8 +22,10 @@ func (f *firestoreDrugLookup) LookupMaster(normalized string) (string, bool, err
 	if err != nil || !found {
 		return "", false, err
 	}
-	generic, _ := fields["genericName"].(string)
-	return generic, generic != "", nil
+
+	// 採用可否の判断は GenericNameFromMasterFields に集約している(あいまいな場合は引けない扱い)。
+	generic, ok := GenericNameFromMasterFields(fields)
+	return generic, ok, nil
 }
 
 func (f *firestoreDrugLookup) QueueUnmatched(rawInput, normalized string) error {

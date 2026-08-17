@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/patient_model.dart';
 import '../models/user_model.dart';
 import '../services/ai_drug_service.dart';
+import '../services/audit_service.dart';
 import '../services/connectivity_guard.dart';
 import 'chat_screen.dart';
 import 'qr_scanner_screen.dart';
@@ -27,6 +28,20 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+
+    // 「誰が・いつ・どの患者の医療情報を見たか」を残す。
+    // ガイドライン システム運用編 17① が求める「ログイン中に操作した医療情報が
+    // 特定できる」証跡のうち、参照(READ)にあたる部分。
+    // 画面を開いた時点で1件記録する(タブ切替や再描画では増やさない)。
+    AuditService().log(
+      userId: widget.user.uid,
+      userName: widget.user.name,
+      action: AuditService.actionRead,
+      collection: 'patients',
+      documentId: widget.patient.id,
+      facilityId: widget.patient.facilityId,
+      reason: '患者詳細画面の表示',
+    );
   }
 
   @override

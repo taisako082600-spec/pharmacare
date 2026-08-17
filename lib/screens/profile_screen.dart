@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
 import 'login_screen.dart';
+import 'mfa_screens.dart';
 import 'connection_request_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
@@ -85,6 +86,22 @@ class ProfileScreen extends StatelessWidget {
                     _MenuItem(icon: Icons.business_outlined, label: '施設', value: user.facilityName.isNotEmpty ? user.facilityName : '未設定', onTap: () {}),
                     const Divider(height: 1, indent: 56),
                     _MenuItem(icon: Icons.lock_outline, label: 'パスワード変更', onTap: () {}),
+                    const Divider(height: 1, indent: 56),
+                    // 二要素認証(ガイドライン システム運用編 14⑤)。
+                    // 現状は任意設定。全員必須にする場合は Identity Platform 側の
+                    // mfa.state を MANDATORY へ変更する。
+                    _MenuItem(
+                      icon: Icons.security_outlined,
+                      label: '二要素認証',
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => MfaSettingsScreen(accountName: user.email),
+                          ),
+                        );
+                      },
+                    ),
                     const Divider(height: 1, indent: 56),
                     _MenuItem(icon: Icons.help_outline, label: 'ヘルプ・お問い合わせ', onTap: () {}),
                     const Divider(height: 1, indent: 56),

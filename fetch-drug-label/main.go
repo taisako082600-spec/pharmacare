@@ -24,12 +24,18 @@ func main() {
 		return
 	}
 
+	if os.Args[1] == "audit-master" {
+		RunAuditDrugMaster()
+		return
+	}
+
 	runFetchLabel(os.Args[1])
 }
 
 func printUsage() {
 	fmt.Println("Usage:")
 	fmt.Println("  fetch-drug-label import-master   薬価基準収載品目リストをdrug_masterへ一括取り込み")
+	fmt.Println("  fetch-drug-label audit-master    取り込まずに解析のみ。正規化後IDの衝突を調べる(書き込みなし)")
 	fmt.Println("  fetch-drug-label <一般名>         添付文書を取得・チャンク化してdrug_knowledge_baseへ保存")
 }
 

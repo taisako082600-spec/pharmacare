@@ -1,6 +1,10 @@
 ﻿import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../services/auth_service.dart';
+import '../services/audit_service.dart';
+import '../services/mfa_service.dart';
 import '../models/user_model.dart';
+import 'mfa_screens.dart';
 import 'main_shell.dart';
 import 'admin/admin_shell.dart';
 import 'register_screen.dart';
@@ -31,17 +35,28 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       final cred = await _authService.signIn(email, password);
-      final data = await _authService.getUserData(cred.user!.uid);
+      await _afterSignIn(cred);
+    } on FirebaseAuthMultiFactorException catch (e) {
+      // 二要素認証を登録済みのユーザー。パスワードは正しいので、認証アプリの
+      // 6桁を入力してもらってサインインを完了させる(ガイドライン システム運用編 14⑤)。
       if (!mounted) return;
-      if (data == null) {
-        setState(() { _error = 'ユーザー情報が見つかりません'; _loading = false; });
-        return;
-      }
-      final user = UserModel.fromMap(cred.user!.uid, data);
-      if (user.isAdmin) {
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => AdminShell(user: user)));
-      } else {
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => MainShell(user: user)));
+      setState(() => _loading = false);
+      final code = await showTotpChallengeDialog(context);
+      if (code == null) return; // 利用者がキャンセル
+
+      setState(() { _loading = true; _error = null; });
+      try {
+        final cred = await MfaService().resolveSignIn(
+          resolver: e.resolver,
+          oneTimePassword: code,
+        );
+        await _afterSignIn(cred);
+      } catch (_) {
+        if (!mounted) return;
+        setState(() {
+          _error = '認証コードが正しくありません。認証アプリに表示されている6桁を入力してください';
+          _loading = false;
+        });
       }
     } catch (e) {
       if (!mounted) return;
@@ -49,6 +64,39 @@ class _LoginScreenState extends State<LoginScreen> {
         _error = 'ログインに失敗しました。メールアドレスまたはパスワードが正しくありません';
         _loading = false;
       });
+    }
+  }
+
+  /// サインイン成功後の共通処理。
+  /// パスワードのみで通った場合と、二要素認証を経た場合の両方から呼ばれる。
+  Future<void> _afterSignIn(UserCredential cred) async {
+    final data = await _authService.getUserData(cred.user!.uid);
+    if (!mounted) return;
+    if (data == null) {
+      setState(() {
+        _error = 'ユーザー情報が見つかりません';
+        _loading = false;
+      });
+      return;
+    }
+    final user = UserModel.fromMap(cred.user!.uid, data);
+
+    // ログイン時刻の記録(ガイドライン システム運用編 17① で求められる証跡)。
+    // 記録に失敗してもログイン自体は継続させる。
+    await AuditService().log(
+      userId: user.uid,
+      userName: user.name,
+      action: AuditService.actionLogin,
+      collection: 'users',
+      documentId: user.uid,
+      facilityId: user.facilityId,
+    );
+
+    if (!mounted) return;
+    if (user.isAdmin) {
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => AdminShell(user: user)));
+    } else {
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => MainShell(user: user)));
     }
   }
 

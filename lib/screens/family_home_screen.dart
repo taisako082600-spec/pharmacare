@@ -122,10 +122,13 @@ class FamilyHomeScreen extends StatelessWidget {
 
               // 最新バイタル
               _FamilyVitalsSection(patientId: patientId),
-              const SizedBox(height: 16),
 
-              // 次回受診予定
-              _FamilyNextVisitSection(patientId: patientId, facilityId: user.facilityId),
+              // 「次回受診予定」セクションは意図的に外している。
+              // events コレクションは facilityId と type しか持たず patientId が無いため、
+              // 家族に表示すると同じ施設の他の入居者の受診予定(タイトルに氏名が入りうる)まで
+              // 見えてしまう。要配慮個人情報の目的外提供にあたるため、events に patientId を
+              // 持たせて患者単位で絞れるようにするまで表示しない(2026-08-17)。
+              // 詳細は COMPLIANCE.md を参照。
             ],
           ),
         );
@@ -373,100 +376,6 @@ class _FamilyVitalItem extends StatelessWidget {
           Text('$value $unit', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color)),
         ],
       ),
-    );
-  }
-}
-
-// ─── 次回受診予定 ─────────────────────────────────────────────────────
-
-class _FamilyNextVisitSection extends StatelessWidget {
-  final String patientId;
-  final String facilityId;
-  const _FamilyNextVisitSection({required this.patientId, required this.facilityId});
-
-  @override
-  Widget build(BuildContext context) {
-    final now = DateTime.now();
-    final in30 = now.add(const Duration(days: 30));
-
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('events')
-          .where('facilityId', isEqualTo: facilityId)
-          .where('type', isEqualTo: '次回受診')
-          .snapshots(),
-      builder: (ctx, snap) {
-        if (snap.hasError) return _sectionError('次回の受診予定');
-        if (!snap.hasData) return const SizedBox.shrink();
-        final upcomingEvents = snap.data!.docs.where((doc) {
-          final data = doc.data() as Map<String, dynamic>;
-          final date = (data['date'] as Timestamp?)?.toDate();
-          if (date == null) return false;
-          return date.isAfter(now) && date.isBefore(in30);
-        }).toList()
-          ..sort((a, b) {
-            final da = ((a.data() as Map)['date'] as Timestamp).toDate();
-            final db = ((b.data() as Map)['date'] as Timestamp).toDate();
-            return da.compareTo(db);
-          });
-
-        if (upcomingEvents.isEmpty) return const SizedBox.shrink();
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(width: 4, height: 16, decoration: BoxDecoration(color: Colors.indigo, borderRadius: BorderRadius.circular(2))),
-                const SizedBox(width: 8),
-                const Text('次回受診予定', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-              ],
-            ),
-            const SizedBox(height: 10),
-            ...upcomingEvents.take(3).map((doc) {
-              final data = doc.data() as Map<String, dynamic>;
-              final date = (data['date'] as Timestamp).toDate();
-              final daysUntil = date.difference(now).inDays;
-              final title = data['title'] as String? ?? '次回受診';
-              return Container(
-                margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 6)],
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 48, height: 48,
-                      decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(10)),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text('${date.month}月', style: const TextStyle(fontSize: 10, color: Colors.indigo)),
-                          Text('${date.day}日', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.indigo)),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                          Text('あと$daysUntil日', style: TextStyle(fontSize: 12, color: daysUntil <= 7 ? Colors.orange : Colors.black54)),
-                        ],
-                      ),
-                    ),
-                    const Icon(Icons.chevron_right, color: Colors.grey),
-                  ],
-                ),
-              );
-            }),
-          ],
-        );
-      },
     );
   }
 }

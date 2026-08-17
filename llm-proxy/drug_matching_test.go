@@ -18,6 +18,18 @@ func TestNormalizeDrugName(t *testing.T) {
 		{"OD錠表記", "カロナールOD錠200mg", "カロナール"},
 		{"全角小数点(実データで発見したバグ)", "オーラ注歯科用カートリッジ１．８ｍＬ", "オーラ歯科用カートリッジ"},
 		{"半角小数点", "テスト錠1.5mg", "テスト"},
+
+		// 輸液の号数は中身が別物(1号=開始液 / 2号=脱水補給液 / 3号=維持液 / 4号=術後回復液)。
+		// 以前は数量として一緒に削られ、すべて同じキーに潰れて別の輸液の情報を返していた。
+		{"輸液の号数は残す(1号)", "ＫＮ１号輸液", "KN1号輸液"},
+		{"輸液の号数は残す(3号)", "ＫＮ３号輸液", "KN3号輸液"},
+		{"号数が違えば別キーになる", "ソリタ－Ｔ３号輸液", "ソリタ－T3号輸液"},
+
+		// 「号」が付かない製品番号(ソルデム3A/3AG等)までは正規化で救えない。
+		// 数量表記と区別できず、無理に残すと通常の名寄せを壊すため、ここは潰れる前提。
+		// 代わりに、成分名が食い違う衝突は import 時に ambiguous を立て、
+		// LookupMaster が一般名を返さないようにして誤った情報提供を防いでいる。
+		{"号が付かない製品番号は潰れる(ambiguousで担保)", "ソルデム３Ａ輸液500mL", "ソルデムA輸液"},
 	}
 
 	for _, c := range cases {
@@ -125,5 +137,54 @@ func TestMatchDrugName_DoesNotGuessOnAmbiguity(t *testing.T) {
 	}
 	if result.Matched {
 		t.Errorf("完全一致しない場合は自動確定せずキューに積むべき: got %+v", result)
+	}
+}
+
+// 正規化後の名前が同じでも成分が違う製品は、一般名を推測で返してはいけない。
+// (実データで36グループ存在。例: KN1号輸液=開始液 と KN2号輸液=脱水補給液)
+func TestGenericNameFromMasterFields(t *testing.T) {
+	cases := []struct {
+		name      string
+		fields    map[string]interface{}
+		wantName  string
+		wantFound bool
+	}{
+		{
+			name:      "あいまいでなければ一般名を返す",
+			fields:    map[string]interface{}{"genericName": "ロキソプロフェンナトリウム", "ambiguous": false},
+			wantName:  "ロキソプロフェンナトリウム",
+			wantFound: true,
+		},
+		{
+			name:      "ambiguousフィールドが無い古いデータも返す",
+			fields:    map[string]interface{}{"genericName": "ロキソプロフェンナトリウム"},
+			wantName:  "ロキソプロフェンナトリウム",
+			wantFound: true,
+		},
+		{
+			name: "あいまいなら一般名を返さない",
+			fields: map[string]interface{}{
+				"genericName":           "開始液",
+				"ambiguous":             true,
+				"ambiguousGenericNames": []string{"開始液", "維持液", "脱水補給液"},
+			},
+			wantName:  "",
+			wantFound: false,
+		},
+		{
+			name:      "一般名が空なら引けない",
+			fields:    map[string]interface{}{"genericName": "", "ambiguous": false},
+			wantName:  "",
+			wantFound: false,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got, found := GenericNameFromMasterFields(c.fields)
+			if got != c.wantName || found != c.wantFound {
+				t.Errorf("got (%q, %v), want (%q, %v)", got, found, c.wantName, c.wantFound)
+			}
+		})
 	}
 }

@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/auth_service.dart';
+import '../services/password_policy.dart';
 import '../models/user_model.dart';
 import 'main_shell.dart';
 
@@ -55,8 +56,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
       setState(() => _error = 'すべての項目を入力してください');
       return;
     }
-    if (password.length < 6) {
-      setState(() => _error = 'パスワードは6文字以上で設定してください');
+    final passwordError = validatePassword(password);
+    if (passwordError != null) {
+      setState(() => _error = passwordError);
       return;
     }
 
@@ -249,7 +251,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           msg = 'このメールアドレスは既に登録されています。ログイン画面からサインインしてください。';
           break;
         case 'weak-password':
-          msg = 'パスワードが短すぎます（6文字以上）';
+          msg = 'パスワードが短すぎます（$minLengthWithoutMfa文字以上）';
           break;
         case 'invalid-email':
           msg = 'メールアドレスの形式が正しくありません';
@@ -408,7 +410,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               controller: _passwordController,
               obscureText: _obscure,
               decoration: InputDecoration(
-                labelText: 'パスワード（6文字以上）',
+                labelText: 'パスワード（$minLengthWithoutMfa文字以上・英数字を含む）',
                 prefixIcon: const Icon(Icons.lock_outline),
                 suffixIcon: IconButton(
                   icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility),

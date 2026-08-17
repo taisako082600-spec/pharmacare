@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 	"sync"
@@ -29,6 +30,7 @@ type FirestoreClient struct {
 	baseURL     string
 	httpClient  *http.Client
 	saKey       *serviceAccountKey
+	useGcloud   bool
 	mu          sync.Mutex
 	accessToken string
 	tokenExpiry time.Time
@@ -45,11 +47,16 @@ type serviceAccountKey struct {
 const firestoreScope = "https://www.googleapis.com/auth/datastore"
 
 // NewFirestoreClient は GOOGLE_APPLICATION_CREDENTIALS が指すサービスアカウントJSONを読み込む。
-// 未設定の場合は nil, nil を返す(呼び出し側は「薬剤知識ベース機能は無効」として扱う)。
+// 鍵が無い場合は gcloud のログイン情報にフォールバックする。
+//
+// これは taiさんの手元で動かすバッチツールなので、鍵ファイルを常備しなくても
+// 実行できるようにしてある(以前は鍵をダウンロードフォルダに置いていたが、
+// Windowsのストレージセンサーに自動削除されて動かなくなった経緯がある。
+// 詳細は deploy 側の auth_helper.js のコメントを参照)。
 func NewFirestoreClient() (*FirestoreClient, error) {
 	keyPath := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS")
 	if keyPath == "" {
-		return nil, nil
+		return newFirestoreClientFromGcloud()
 	}
 
 	raw, err := os.ReadFile(keyPath)
@@ -78,13 +85,69 @@ func NewFirestoreClient() (*FirestoreClient, error) {
 	}, nil
 }
 
+// gcloud のインストール先候補(PATHが通っていない環境があるため直接も探す)。
+var gcloudCandidates = []string{
+	"gcloud",
+	`C:\Users\OWNER\AppData\Local\Google\Cloud SDK\google-cloud-sdk\bin\gcloud.cmd`,
+	`C:\Program Files (x86)\Google\Cloud SDK\google-cloud-sdk\bin\gcloud.cmd`,
+	`C:\Program Files\Google\Cloud SDK\google-cloud-sdk\bin\gcloud.cmd`,
+}
+
+// newFirestoreClientFromGcloud は gcloud のログイン情報を使うクライアントを作る。
+// トークンは gcloud に都度発行させるため、秘密鍵をディスクに置かなくてよい。
+func newFirestoreClientFromGcloud() (*FirestoreClient, error) {
+	if _, err := tokenFromGcloud(); err != nil {
+		return nil, fmt.Errorf(
+			"認証情報が見つかりません。gcloud auth login を実行するか、"+
+				"GOOGLE_APPLICATION_CREDENTIALS にサービスアカウントキーのパスを設定してください: %w", err)
+	}
+
+	const projectID = "pharmacist-app-646df"
+	return &FirestoreClient{
+		projectID:  projectID,
+		baseURL:    fmt.Sprintf("https://firestore.googleapis.com/v1/projects/%s/databases/(default)/documents", projectID),
+		httpClient: &http.Client{Timeout: 15 * time.Second},
+		useGcloud:  true,
+	}, nil
+}
+
+func tokenFromGcloud() (string, error) {
+	var lastErr error
+	for _, bin := range gcloudCandidates {
+		out, err := exec.Command(bin, "auth", "print-access-token").Output()
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		if token := strings.TrimSpace(string(out)); token != "" {
+			return token, nil
+		}
+	}
+	if lastErr == nil {
+		lastErr = fmt.Errorf("gcloud が見つかりませんでした")
+	}
+	return "", lastErr
+}
+
 // getAccessToken はOAuth2アクセストークンを取得・キャッシュする(sync.Mutex保護、期限切れ前に自動更新)。
-// JWT Bearer フロー(RFC 7523)をサービスアカウントの秘密鍵で自前署名して実装している。
+// サービスアカウント鍵がある場合は JWT Bearer フロー(RFC 7523)を自前署名して実装し、
+// 無い場合は gcloud にトークンを発行させる。
 func (c *FirestoreClient) getAccessToken() (string, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	if c.accessToken != "" && time.Now().Before(c.tokenExpiry) {
+		return c.accessToken, nil
+	}
+
+	if c.useGcloud {
+		token, err := tokenFromGcloud()
+		if err != nil {
+			return "", err
+		}
+		c.accessToken = token
+		// gcloud のトークンは通常1時間有効。余裕をみて55分でキャッシュを切る。
+		c.tokenExpiry = time.Now().Add(55 * time.Minute)
 		return c.accessToken, nil
 	}
 

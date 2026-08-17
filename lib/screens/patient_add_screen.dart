@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user_model.dart';
+import '../services/audit_service.dart';
 
 class PatientAddScreen extends StatefulWidget {
   final UserModel user;
@@ -78,7 +79,7 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
       final birthStr = '${_birthDate!.year}-${_birthDate!.month.toString().padLeft(2, '0')}-${_birthDate!.day.toString().padLeft(2, '0')}';
       final roomNumber = _noRoom ? await _generateRoomId() : roomInput;
 
-      await FirebaseFirestore.instance.collection('patients').add({
+      final created = await FirebaseFirestore.instance.collection('patients').add({
         'name': name,
         'birthDate': birthStr,
         'age': _calcAge(_birthDate!),
@@ -87,6 +88,17 @@ class _PatientAddScreenState extends State<PatientAddScreen> {
         'facilityId': widget.user.facilityId,
         'createdAt': FieldValue.serverTimestamp(),
       });
+
+      // 医療情報の新規作成の証跡(ガイドライン システム運用編 17①)
+      await AuditService().log(
+        userId: widget.user.uid,
+        userName: widget.user.name,
+        action: AuditService.actionCreate,
+        collection: 'patients',
+        documentId: created.id,
+        facilityId: widget.user.facilityId,
+        reason: '入居者の新規登録',
+      );
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

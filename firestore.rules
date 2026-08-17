@@ -127,8 +127,17 @@ service cloud.firestore {
           get(/databases/$(database)/documents/patients/$(patientId)).data.facilityId
         ) || isAdmin());
 
+        // 受診ごとの処方薬剤。家族は「自分の家族の処方内容」を見るのが本来の目的なので
+        // 参照のみ許可する(ガイドライン システム運用編 7.2.2「患者への情報提供は、
+        // 一般的には参照のみとすること」)。パスに patientId が含まれるため、
+        // isLinkedFamily で自分に紐付く患者だけに確実に限定できる。
+        // ※ここに read 権限が無かったため、家族画面の「現在の処方」で薬剤名が
+        //   1件も表示されない状態だった(2026-08-17に発見)。
         match /medicines/{medicineId} {
-          allow read, write: if isSignedIn() && (belongsToFacility(
+          allow read: if isSignedIn() && (belongsToFacility(
+            get(/databases/$(database)/documents/patients/$(patientId)).data.facilityId
+          ) || isLinkedFamily(patientId) || isAdmin());
+          allow write: if isSignedIn() && (belongsToFacility(
             get(/databases/$(database)/documents/patients/$(patientId)).data.facilityId
           ) || isAdmin());
 
@@ -191,10 +200,21 @@ service cloud.firestore {
       }
     }
 
-    // 監査ログ（管理者のみ読取）
+    // 監査ログ
+    // 「医療情報システムの安全管理に関するガイドライン第7.0版」システム運用編
+    // 17.証跡のレビュー・システム監査 に対応する。
+    //  - ①アクセスログを記録する → create を許可する(以前は write:false で
+    //    全書き込みを禁じていたため、記録処理を書いても1件も残らなかった)
+    //  - ②ログの不当な削除／改ざん／追加を防止する → update/delete は誰にも許可しない。
+    //    さらに、他人になりすましたログを作れないよう userId を認証済みUIDに固定する
+    //  - ③記録に用いる時刻は信頼できる情報を使う → クライアント時刻を受け付けず、
+    //    サーバー時刻(request.time = FieldValue.serverTimestamp())と一致するものだけ通す
     match /audit_logs/{logId} {
       allow read: if isAdmin();
-      allow write: if false;
+      allow create: if isSignedIn()
+                    && request.resource.data.userId == request.auth.uid
+                    && request.resource.data.timestamp == request.time;
+      allow update, delete: if false;
     }
 
     // 薬剤知識ベース（②医薬品注意点表示 B案）

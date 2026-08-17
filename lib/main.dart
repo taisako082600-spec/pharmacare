@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'services/idle_timeout.dart';
 import 'screens/login_screen.dart';
 import 'screens/main_shell.dart';
 import 'screens/admin/admin_shell.dart';
@@ -49,6 +50,9 @@ class MyApp extends StatelessWidget {
           },
         ),
       ),
+      // 無操作が続いたら自動でサインアウトする(ガイドライン システム運用編 12.3.2)。
+      // アプリ全体を包むことで、どの画面で放置されても働く。
+      builder: (context, child) => IdleTimeout(child: child ?? const SizedBox.shrink()),
       home: const AuthGate(),
     );
   }
