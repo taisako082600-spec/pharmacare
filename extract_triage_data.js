@@ -96,8 +96,31 @@ const html = fs.readFileSync(HTML, 'utf8');
 const marker = '  const DATA = ';
 const start = html.indexOf(marker);
 if (start < 0) throw new Error('HTML内に DATA ブロックが見つかりません');
-const end = html.indexOf('\n  };', start);
+
+// 終端は「閉じ括弧＋セミコロン」までをまとめて置き換える。
+// ここを閉じ括弧の手前で切ると、新しいJSONの `}` と古い `};` が両方残って
+// `const DATA = {...} };` となり、スクリプト全体が構文エラーで止まる
+// (チャートと症候別一覧が空欄になる)。実際に一度やらかしている。
+const endMarker = '\n  };';
+const end = html.indexOf(endMarker, start);
 if (end < 0) throw new Error('DATA ブロックの終端が見つかりません');
-const next = marker + JSON.stringify(data, null, 2).replace(/\n/g, '\n  ');
-fs.writeFileSync(HTML, html.slice(0, start) + next + html.slice(end), 'utf8');
-console.log('HTMLのDATAを更新しました');
+
+const next = marker + JSON.stringify(data, null, 2).replace(/\n/g, '\n  ') + ';';
+const updated = html.slice(0, start) + next + html.slice(end + endMarker.length);
+
+// 書き出す前に、ページ内の <script> がすべて構文として通ることを確かめる。
+// JSON.parse だけでは「JSONは正しいがJSとしては壊れている」状態を見逃す。
+const scripts = [...updated.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)]
+  .map((m) => m[1])
+  .filter((s) => s.trim());
+scripts.forEach((code, i) => {
+  try {
+    new Function(code);
+  } catch (e) {
+    console.error(`script[${i}] が構文エラーです: ${e.message}`);
+    process.exit(1);
+  }
+});
+
+fs.writeFileSync(HTML, updated, 'utf8');
+console.log(`HTMLのDATAを更新しました (script ${scripts.length}件の構文チェック済み)`);
