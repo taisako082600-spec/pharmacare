@@ -52,12 +52,31 @@ class _OTCTriageFormScreenState extends State<OTCTriageFormScreen> {
   };
 
   static const Map<String, List<String>> redFlagOptions = {
+    // 喉症状メイン型の危険信号(cantSwallowSaliva 以降の4項目)は、厚労省公開資料
+    // 「薬局・ドラッグストアにおける症候別トリアージ」スライド22を出典とする。
+    // 開口障害・呼吸苦は扁桃周囲膿瘍/急性喉頭蓋炎(気道緊急)、突然発症・嚥下と
+    // 無関係の痛みは大動脈解離/心筋梗塞/くも膜下出血を示唆する。呼吸苦は既存の
+    // respiratoryDistress が兼ねる。
+    // throatPainNotOnSwallowing は書籍2『薬学臨床推論』第3章でも独立して根拠が
+    // 示されている(風邪による咽頭痛は原則「嚥下時痛」であり、嚥下時痛でない
+    // 咽頭痛は要注意)。
+    // 原典が併記する「Centorの基準3点以上」は、扁桃白苔の視認・前頸部リンパ節の
+    // 触診を要し施設スタッフ(医療専門職ではない介護士・看護師)には判定できないため、
+    // 意図的に実装していない。
     'cold': [
       'highFever38Plus',
       'respiratoryDistress',
       'yellowSputum',
       'coughingUpBlood',
+      'cantSwallowSaliva',
+      'mouthOpeningDifficulty',
+      'throatPainSuddenOnset',
+      'throatPainNotOnSwallowing',
     ],
+    // bladderBowelDysfunction / shakingChills は書籍1『アルゴリズムで考える
+    // 薬剤師の臨床判断』発熱章の臨床判断アルゴリズムに基づく。前者は硬膜外膿瘍
+    // (アルゴリズム上「腰痛+膀胱直腸障害」で緊急受診)、後者は菌血症を示唆する
+    // 悪寒戦慄(急性腎盂腎炎の60%が菌血症を合併)。
     'fever': [
       'consciousnessOrLethargy',
       'severeHeadacheNeckStiff',
@@ -65,34 +84,47 @@ class _OTCTriageFormScreenState extends State<OTCTriageFormScreen> {
       'cantSwallowSaliva',
       'newMedicationStarted',
       'severeAbdominalOrBackPain',
+      'bladderBowelDysfunction',
+      'shakingChills',
       'heatstrokeRisk',
       'travelHistory',
       'steroidWithdrawal',
     ],
+    // neckMovementTrigger は書籍1頭痛章のアルゴリズムで、突発性頭痛の直後に
+    // 「首を動かすと増強」が分岐として置かれていることに対応(脳動脈解離・髄膜刺激)。
     'headache': [
       'headacheSuddenOnset',
       'worstEverHeadache',
       'worseningTrend',
       'headInjuryRecent',
+      'neckMovementTrigger',
       'weaknessNumbnessSpeech',
       'visionOrEyePain',
       'vomitingNeckStiff',
       'consciousnessOrLethargy',
       'temporalArteritis',
     ],
+    // severePainBeyondRedness は壊死性筋膜炎。書籍1発疹章が、蜂窩織炎と鑑別を
+    // 要する救急対応疾患として「疼痛が高度で発赤のない中枢側まで疼痛を訴える」
+    // と明記している。
     'rash': [
       'mucosalInvolvement',
       'blistersErosion',
       'newMedicationStarted',
       'feverWithRash',
       'spreadingRapidly',
+      'severePainBeyondRedness',
       'darkNoduleUlcer',
     ],
+    // kidneyDiseaseHistory は急性腎不全。書籍1浮腫章の「緊急性の高い疾患」6疾患
+    // (急性心不全/急性腎不全/劇症肝炎/アナフィラキシーショック/深部静脈血栓症/
+    // 血管性浮腫による窒息)のうち、これだけ対応する設問がなかった。
     'edema': [
       'breathingDifficulty',
       'oneLegSuddenSwelling',
       'chestPainPalpitation',
       'faceLipSwelling',
+      'kidneyDiseaseHistory',
       'jaundiceRapidWorsening',
     ],
     'dysphagia': [
@@ -101,6 +133,10 @@ class _OTCTriageFormScreenState extends State<OTCTriageFormScreen> {
       'consciousnessOrLethargy',
       'newMedicationStarted',
     ],
+    // painMigratingBackToFlank(大動脈解離)と suddenLowerAbdominalPainFemale
+    // (卵巣嚢腫茎捻転)は、書籍1腹痛章の「見逃してはいけない緊急性の高い疾患」
+    // 8疾患に挙がっているが、これまで腰痛・吐き気嘔吐カテゴリーにしか設問がなく、
+    // 腹痛を主訴に選んだスタッフには見えていなかった。
     'abdominalPain': [
       'severeShockSigns',
       'vomitingBloodOrBlackStool',
@@ -112,6 +148,8 @@ class _OTCTriageFormScreenState extends State<OTCTriageFormScreen> {
       'chestPainShock',
       'pancreatitisAlcohol',
       'appendicitisPattern',
+      'painMigratingBackToFlank',
+      'suddenLowerAbdominalPainFemale',
     ],
     'nauseaVomiting': [
       'severeHeadache',
@@ -127,6 +165,11 @@ class _OTCTriageFormScreenState extends State<OTCTriageFormScreen> {
       'backPainRadiating',
       'weaknessNumbnessSpeech',
     ],
+    // recentAntibiotics は重症偽膜性腸炎(C. difficile 腸炎)。書籍1下痢・便秘章の
+    // 「見逃してはいけない緊急性の高い疾患」に挙がっているが、服薬歴を問う設問が
+    // なく拾えなかった。抗菌薬を使用中の高齢者は施設で日常的にいるため実効性が高い。
+    // recentAbdominalSurgery は同章が腸閉塞の可能性を上げる情報として明記している
+    // 「開腹手術の既往」。
     'diarrheaConstipation': [
       'bloodyStool',
       'vomitingBloodOrBlackStool',
@@ -134,16 +177,27 @@ class _OTCTriageFormScreenState extends State<OTCTriageFormScreen> {
       'dizzinessOrShock',
       'breathingDifficulty',
       'noStoolGasWithVomiting',
+      'recentAbdominalSurgery',
+      'recentAntibiotics',
       'urticariaWithDiarrhea',
       'highFever',
     ],
+    // slowPulseOrFainting は房室ブロック。書籍1動悸章の「見逃してはいけない
+    // 緊急性の高い疾患」4疾患(心不全/心室頻拍/房室ブロック/COPD)のうち、
+    // これだけ対応する設問がなかった。徐脈と失神は非医療職でも観察できる。
     'palpitations': [
       'breathingDifficultySwelling',
       'suddenRegularFastPulse',
       'irregularPulseNew',
+      'slowPulseOrFainting',
     ],
+    // orthopneaNocturnal は心不全・肺水腫。書籍1咳章の「見逃してはいけない
+    // 緊急性の高い疾患」に両方が挙がっているが、既存の suddenBreathlessnessAfterRest
+    // は肺塞栓症(長期臥床後)を狙った設問で、起坐呼吸・発作性夜間呼吸困難を拾えない。
+    // 高齢者施設では心不全の頻度が高い。
     'coughDyspnea': [
       'suddenBreathlessnessAfterRest',
+      'orthopneaNocturnal',
       'lowOxygenSigns',
       'bloodInSputum',
       'chokingEpisode',
@@ -164,11 +218,19 @@ class _OTCTriageFormScreenState extends State<OTCTriageFormScreen> {
       'dermatomyositis',
       'infectionElsewhereJoint',
     ],
+    // 回転性めまい(vertigoSpinning)と嘔吐(withVomiting)は危険信号から外し、
+    // consultationFlags(黄)へ移した。書籍1めまい章は良性発作性頭位めまい症・
+    // 前庭神経炎・メニエール病を「よくある疾患」に分類しており、特に前庭神経炎は
+    // 「回転性めまい」+「悪心・嘔吐は激しい」が典型像である。これを危険信号として
+    // いると、高齢者施設でありふれた良性疾患のたびに医療機関受診推奨(赤)が出る。
+    // 同章が小脳梗塞との鑑別点として挙げているのは症状の激しさではなく
+    // 「立位保持・独歩が困難」であるため、それを cannotStandOrWalk として新設した。
+    // neckMovementTrigger は同章の緊急疾患に挙がる椎骨脳底動脈解離に対応する。
     'dizziness': [
       'suddenWithWeaknessSpeech',
       'gradualWeaknessDysphagia',
-      'withVomiting',
-      'vertigoSpinning',
+      'cannotStandOrWalk',
+      'neckMovementTrigger',
       'suddenHearingLoss',
       'chestPainPalpitation',
       'nsaidsWithBleedingSigns',
@@ -177,6 +239,9 @@ class _OTCTriageFormScreenState extends State<OTCTriageFormScreen> {
       'seizure',
       'suddenOnsetMinutes',
     ],
+    // gaitDisturbanceIncontinence は正常圧水頭症。書籍1記憶障害章の
+    // 「見逃してはいけない緊急性の高い疾患」に挙がっており、治療可能な認知症として
+    // 拾う価値が高い(歩行障害・尿失禁・認知障害が三徴)。
     'memoryImpairment': [
       'suddenOnset',
       'headInjuryOrFall',
@@ -184,6 +249,7 @@ class _OTCTriageFormScreenState extends State<OTCTriageFormScreen> {
       'weaknessNumbness',
       'heavyAlcoholUse',
       'feverConsciousnessChange',
+      'gaitDisturbanceIncontinence',
       'diabetesMedication',
     ],
   };
@@ -194,12 +260,17 @@ class _OTCTriageFormScreenState extends State<OTCTriageFormScreen> {
     'respiratoryDistress': '呼吸困難がある',
     'yellowSputum': '黄色や緑色の痰が出ている',
     'coughingUpBlood': '血痰が出ている',
+    'mouthOpeningDifficulty': '口を大きく開けられない(開けようとすると強く痛がる)',
+    'throatPainSuddenOnset': 'のどの痛みが突然始まった(数分以内に急に)',
+    'throatPainNotOnSwallowing': '飲み込む時以外もずっとのどが痛い(飲み込みと関係なく痛む)',
     'consciousnessOrLethargy': '意識がはっきりしない・ぐったりしている',
     'severeHeadacheNeckStiff': '激しい頭痛や首の後ろのこわばりを伴う',
     'breathingDifficulty': '呼吸が苦しそう',
     'cantSwallowSaliva': 'よだれが垂れる・唾も飲み込めないほどのどが痛い',
     'newMedicationStarted': '最近新しい薬を始めた直後に起きた',
     'severeAbdominalOrBackPain': '強い腹痛・背中の痛みを伴う',
+    'bladderBowelDysfunction': '腰や背中の痛みに加えて、尿や便が出にくい・漏れる',
+    'shakingChills': 'ガタガタと震えるほどの強い寒気があった',
     'heatstrokeRisk': '猛暑・エアコンのない環境に長時間いた',
     'travelHistory': '最近海外渡航歴がある',
     'steroidWithdrawal': 'ステロイド薬を最近中止した',
@@ -208,6 +279,7 @@ class _OTCTriageFormScreenState extends State<OTCTriageFormScreen> {
     'worseningTrend': '日に日にひどくなっている',
     'temporalArteritis': 'こめかみ付近の脈打つような圧痛+だるさ・関節の痛み等の全身症状がある(高齢者)',
     'headInjuryRecent': '最近(数ヶ月以内)頭をぶつけた・転倒した',
+    'neckMovementTrigger': '首を動かした後に始まった・首を動かすと強くなる',
     'weaknessNumbnessSpeech': '手足の麻痺・しびれ・ろれつが回らない等を伴う',
     'visionOrEyePain': '目の痛みや見え方の異常を伴う',
     'vomitingNeckStiff': '嘔吐や首の後ろのこわばりを伴う',
@@ -215,10 +287,12 @@ class _OTCTriageFormScreenState extends State<OTCTriageFormScreen> {
     'blistersErosion': '水疱が破れてただれている',
     'feverWithRash': '発疹に発熱を伴う',
     'spreadingRapidly': '短時間で急速に広がっている',
+    'severePainBeyondRedness': '見た目の赤みよりも痛みがずっと強い・赤くない周りまで痛がる',
     'darkNoduleUlcer': '黒っぽいしこりや、治らないただれ・潰瘍がある',
     'oneLegSuddenSwelling': '片足だけ急に腫れている(長時間座った後など)',
     'chestPainPalpitation': '胸の痛みや動悸を伴う',
     'faceLipSwelling': '顔や唇が急に腫れている',
+    'kidneyDiseaseHistory': '腎臓の病気がある・透析中で、むくみが急に強くなった',
     'jaundiceRapidWorsening': '白目や皮膚が黄色い(黄疸)+数日で急に悪化している',
     'suddenOnsetWithWeakness': '急に始まり手足の麻痺やしびれを伴う',
     'severeShockSigns': '激痛でぐったりしている・顔面蒼白・冷や汗がある',
@@ -245,11 +319,15 @@ class _OTCTriageFormScreenState extends State<OTCTriageFormScreen> {
     'severeAbdominalPain': '強い腹痛を伴う',
     'dizzinessOrShock': '立ちくらみ・ぐったりしている',
     'noStoolGasWithVomiting': '排便・おならが全く出ず嘔吐を伴う',
+    'recentAbdominalSurgery': 'お腹の手術を受けたことがある',
+    'recentAntibiotics': '最近、抗菌薬(抗生物質)を飲んでいる・飲み終えた',
     'urticariaWithDiarrhea': '下痢と同時にじんましんが出ている',
     'breathingDifficultySwelling': '呼吸が苦しい・強いむくみを伴う',
     'suddenRegularFastPulse': '急に始まり脈が規則正しく異常に速い',
     'irregularPulseNew': '急に脈が乱れ始めた',
+    'slowPulseOrFainting': '脈が異常に遅い・気を失った(失神した)',
     'suddenBreathlessnessAfterRest': '長時間座った/寝たきりの後に急に息苦しくなった',
+    'orthopneaNocturnal': '横になると息苦しく起き上がると楽になる・夜中に息苦しくて目が覚める',
     'lowOxygenSigns': '唇や爪の色が悪い・呼吸がとても苦しそう',
     'bloodInSputum': '血の混じった痰が出る',
     'chokingEpisode': '食事中にむせて詰まらせた後の症状',
@@ -265,8 +343,7 @@ class _OTCTriageFormScreenState extends State<OTCTriageFormScreen> {
     'infectionElsewhereJoint': '発熱+他の部位の感染症(尿路感染・皮膚感染・歯科治療後の感染等)の症状もある状態での関節の痛み',
     'suddenWithWeaknessSpeech': '急に始まり手足の麻痺・しびれ・ろれつが回らない等を伴う',
     'gradualWeaknessDysphagia': '数日〜数週間かけて徐々に手足の麻痺・しびれ・飲み込みにくさが進行している',
-    'withVomiting': '嘔吐を伴う',
-    'vertigoSpinning': '周囲がぐるぐる回る感じがする',
+    'cannotStandOrWalk': '立っていられない・支えなしでは歩けない',
     'suddenHearingLoss': '片側の聴力が急に低下した',
     'nsaidsWithBleedingSigns': '痛み止め(NSAIDs)を常用中で、立ちくらみや真っ黒な便がある',
     'seizure': 'けいれんを伴う',
@@ -276,6 +353,7 @@ class _OTCTriageFormScreenState extends State<OTCTriageFormScreen> {
     'weaknessNumbness': '手足の麻痺・しびれを伴う',
     'heavyAlcoholUse': '大量の飲酒歴がある',
     'feverConsciousnessChange': '頭痛・発熱を伴い、反応がぼんやりしてきた',
+    'gaitDisturbanceIncontinence': '歩き方がおかしくなった+尿を漏らすようになった',
     'diabetesMedication': '糖尿病治療薬(インスリン・血糖降下薬)を使用中',
   };
 
@@ -284,12 +362,21 @@ class _OTCTriageFormScreenState extends State<OTCTriageFormScreen> {
   // 例: 風邪で鼻水・喉の痛み・咳のうち1つだけが強く出ている場合、単一臓器への細菌感染
   // (副鼻腔炎・溶連菌性咽頭炎等)の可能性があり受診が望ましいが、緊急性が高いわけではない
   // (書籍2「薬学臨床推論」第3章の核心ルール: 複数臓器にまたがる症状はウイルス性=風邪らしい)。
+  //
+  // めまいの2項目も同じ理由でここに置く。書籍1『アルゴリズムで考える 薬剤師の
+  // 臨床判断』めまい章は、良性発作性頭位めまい症・前庭神経炎・メニエール病を
+  // 「よくある疾患」に分類しており、回転性めまいと激しい嘔吐は前庭神経炎の典型像
+  // である。緊急を要するのは「立っていられない・歩けない」(小脳梗塞)側であり、
+  // それは redFlags の cannotStandOrWalk が担う。
   static const Map<String, List<String>> consultationFlagOptions = {
     'cold': ['oneSymptomDominant'],
+    'dizziness': ['vertigoSpinning', 'withVomiting'],
   };
 
   static const Map<String, String> consultationFlagLabels = {
     'oneSymptomDominant': '鼻水・喉の痛み・咳のうち1つだけが強く出ている(他はほとんどない)',
+    'vertigoSpinning': '周囲がぐるぐる回る感じがする',
+    'withVomiting': '嘔吐を伴う',
   };
 
   // 症状の経過(OPQRSTのP=増悪寛解因子・T=時間経過に対応)

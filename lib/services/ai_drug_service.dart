@@ -182,6 +182,8 @@ class AiDrugService {
   // ApplyVitalsRedFlags と同じ閾値・ロジック(必ず同期させること)。
   static const _vitalsLowSpO2Threshold = 90.0;
   static const _vitalsSevereHypertensionSystolic = 180.0;
+  // ショック/qSOFAの収縮期血圧項目。カテゴリを問わない。
+  static const _vitalsHypotensionSystolic = 100.0;
 
   Map<String, dynamic> _fallbackTriageResult(
     String symptomCategory,
@@ -199,6 +201,9 @@ class AiDrugService {
         bpSystolic >= _vitalsSevereHypertensionSystolic &&
         symptomCategory == 'headache') {
       effectiveRedFlags['vitalsSevereHypertension'] = true;
+    }
+    if (bpSystolic != null && bpSystolic <= _vitalsHypotensionSystolic) {
+      effectiveRedFlags['vitalsHypotension'] = true;
     }
 
     final hasRedFlag = _alwaysReferCategories.contains(symptomCategory) ||
