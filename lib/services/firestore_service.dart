@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'audit_service.dart';
 
 /// ⚠️ このクラスは現在 28メソッド中 3つしか使われていない
@@ -119,8 +120,56 @@ class FirestoreService {
     });
   }
 
-  Future<void> updatePatient(String id, Map<String, dynamic> data) async {
-    await _db.collection('patients').doc(id).update(data);
+  /// 患者情報を更新する。
+  ///
+  /// 変更前後の値を監査ログに残すのは、「医療情報を取り扱う情報システム・サービスの
+  /// 提供事業者における安全管理ガイドライン第2.0版」6.2 の電子保存の要求事項のうち
+  /// **真正性**が、単に改変があった事実だけでなく
+  ///
+  ///   > 保存すべき期間中における当該事項の改変又は消去の事実の有無**及びその内容**を
+  ///   > 確認することができる措置を講じ、かつ、当該電磁的記録の作成に係る責任の所在を
+  ///   > 明らかにしていること
+  ///
+  /// を求めているため。削除(deletePatient)は以前から beforeData を残していたが、
+  /// 更新は監査ログ自体を書いておらず「何がどう変わったか」を後から追えなかった。
+  ///
+  /// [userId]/[userName] を省略した場合はログイン中のユーザーを使う。
+  Future<void> updatePatient(
+    String id,
+    Map<String, dynamic> data, {
+    String? userId,
+    String? userName,
+    String? reason,
+  }) async {
+    final ref = _db.collection('patients').doc(id);
+
+    // 変更前の値。更新するフィールドだけに絞って記録する
+    // (無関係なフィールドまで監査ログに複製すると、要配慮個人情報の保管箇所が
+    //  無用に増えるため)。
+    final before = (await ref.get()).data();
+    final beforeSubset = before == null
+        ? null
+        : {
+            for (final key in data.keys)
+              if (before.containsKey(key)) key: before[key],
+          };
+
+    await ref.update(data);
+
+    final uid = userId ?? FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null) {
+      await AuditService().log(
+        userId: uid,
+        userName: userName ?? FirebaseAuth.instance.currentUser?.email ?? '不明',
+        action: AuditService.actionUpdate,
+        collection: 'patients',
+        documentId: id,
+        facilityId: before?['facilityId'] as String?,
+        beforeData: beforeSubset,
+        afterData: data,
+        reason: reason,
+      );
+    }
   }
 
   Future<void> deletePatient(String id, {String? userId, String? userName}) async {

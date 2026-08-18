@@ -7,9 +7,56 @@ import '../models/user_model.dart';
 import '../services/ai_drug_service.dart';
 import '../services/audit_service.dart';
 import '../services/connectivity_guard.dart';
+import '../services/medical_record_print_service.dart';
 import 'chat_screen.dart';
 import 'qr_scanner_screen.dart';
 import 'otc_triage_form_screen.dart';
+
+/// 患者ドキュメントを更新し、変更前後の値を監査ログに残す。
+///
+/// 「医療情報を取り扱う情報システム・サービスの提供事業者における安全管理
+/// ガイドライン第2.0版」6.2 の電子保存の要求事項のうち**真正性**が、
+///
+///   > 改変又は消去の事実の有無**及びその内容**を確認することができる措置を講じ、
+///   > かつ、当該電磁的記録の作成に係る責任の所在を明らかにしていること
+///
+/// を求めているため。アレルギー・服薬上の特記事項・腎肝機能はいずれも
+/// 要配慮個人情報であり、かつ処方判断に直結するので、
+/// 「誰がいつ何をどう書き換えたか」を後から追えないと事故時に検証できない。
+///
+/// 変更前の値は [data] に含まれるキーだけに絞って記録する
+/// (無関係なフィールドまで監査ログに複製すると、要配慮個人情報の保管箇所が
+///  無用に増えるため)。
+Future<void> _updatePatientAudited(
+  PatientModel patient,
+  UserModel user,
+  Map<String, dynamic> data, {
+  required String reason,
+}) async {
+  final ref = FirebaseFirestore.instance.collection('patients').doc(patient.id);
+
+  final before = (await ref.get()).data();
+  final beforeSubset = before == null
+      ? null
+      : {
+          for (final key in data.keys)
+            if (before.containsKey(key)) key: before[key],
+        };
+
+  await ref.update(data);
+
+  await AuditService().log(
+    userId: user.uid,
+    userName: user.name,
+    action: AuditService.actionUpdate,
+    collection: 'patients',
+    documentId: patient.id,
+    facilityId: patient.facilityId,
+    beforeData: beforeSubset,
+    afterData: data,
+    reason: reason,
+  );
+}
 
 class PatientDetailScreen extends StatefulWidget {
   final PatientModel patient;
@@ -42,6 +89,31 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
       facilityId: widget.patient.facilityId,
       reason: '患者詳細画面の表示',
     );
+  }
+
+  /// 保管している医療情報を書面として出力する（見読性の要求事項）。
+  /// 出力自体が医療情報の持ち出しにあたるため、サービス側で監査ログに記録される。
+  Future<void> _printRecord(PatientModel patient) async {
+    final msg = ScaffoldMessenger.of(context);
+    try {
+      final opened = await MedicalRecordPrintService().printPatientRecord(
+        patient: patient,
+        user: widget.user,
+      );
+      if (!mounted) return;
+      if (!opened) {
+        msg.showSnackBar(const SnackBar(
+          content: Text('ポップアップがブロックされました。ブラウザの設定で許可してください'),
+          backgroundColor: Colors.orange,
+        ));
+      }
+    } catch (e) {
+      if (!mounted) return;
+      msg.showSnackBar(SnackBar(
+        content: Text('印刷用の書面を作成できませんでした: $e'),
+        backgroundColor: Colors.red,
+      ));
+    }
   }
 
   @override
@@ -631,6 +703,16 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
             pinned: true,
             backgroundColor: const Color(0xFF388E3C),
             foregroundColor: Colors.white,
+            actions: [
+              // 見読性(書面作成)。事業者ガイドライン第2.0版 6.2 が、保存した
+              // 医療情報を「書面を作成できるようにすること」まで求めているため。
+              // 家族ロールは自分の家族の記録しか開けないので、そのまま出力を許す。
+              IconButton(
+                icon: const Icon(Icons.print_outlined),
+                tooltip: '記録を印刷',
+                onPressed: () => _printRecord(patient),
+              ),
+            ],
             flexibleSpace: FlexibleSpaceBar(
               background: Container(
                 decoration: const BoxDecoration(
@@ -2548,8 +2630,12 @@ class _InfoTabState extends State<_InfoTab> {
                 final nav = Navigator.of(ctx);
                 final msg = ScaffoldMessenger.of(context);
                 try {
-                  await FirebaseFirestore.instance.collection('patients').doc(widget.patient.id)
-                      .update({'allergies': currentAllergies});
+                  await _updatePatientAudited(
+                    widget.patient,
+                    widget.user,
+                    {'allergies': currentAllergies},
+                    reason: 'アレルギー情報の編集',
+                  );
                   nav.pop();
                   msg.showSnackBar(const SnackBar(content: Text('アレルギー情報を保存しました'), backgroundColor: Colors.green));
                 } catch (e) {
@@ -2589,8 +2675,12 @@ class _InfoTabState extends State<_InfoTab> {
               final nav = Navigator.of(context);
               final msg = ScaffoldMessenger.of(context);
               try {
-                await FirebaseFirestore.instance.collection('patients').doc(widget.patient.id)
-                    .update({'medicalNotes': ctrl.text.trim()});
+                await _updatePatientAudited(
+                  widget.patient,
+                  widget.user,
+                  {'medicalNotes': ctrl.text.trim()},
+                  reason: '服薬上の特記事項の編集',
+                );
                 nav.pop();
                 msg.showSnackBar(const SnackBar(content: Text('保存しました'), backgroundColor: Colors.green));
               } catch (e) {
@@ -2732,10 +2822,12 @@ class _InfoTabState extends State<_InfoTab> {
                   if (liverNotesCtrl.text.trim().isNotEmpty) {
                     updateData['liverNotes'] = liverNotesCtrl.text.trim();
                   }
-                  await FirebaseFirestore.instance
-                      .collection('patients')
-                      .doc(widget.patient.id)
-                      .update(updateData);
+                  await _updatePatientAudited(
+                    widget.patient,
+                    widget.user,
+                    updateData,
+                    reason: '腎機能・肝機能の編集',
+                  );
                   if (!mounted) return;
                   navigator.pop();
                   messenger.showSnackBar(const SnackBar(

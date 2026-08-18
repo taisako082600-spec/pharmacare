@@ -495,6 +495,33 @@
       };
     }
   </script>
+  <script>
+    // 見読性(書面作成)のためのヘルパー。
+    //
+    // 「医療情報を取り扱う情報システム・サービスの提供事業者における安全管理
+    // ガイドライン第2.0版」6.2 が求める見読性は、画面表示だけでなく
+    // 「直ちに明瞭かつ整然とした形式で……表示し、及び書面を作成できるようにすること」
+    // を要件としている。Flutter Web は canvas 描画のためブラウザの印刷が使えないので、
+    // 記録内容を別ウィンドウにHTMLとして書き出して印刷ダイアログを開く。
+    //
+    // HTMLは呼び出し側(Dart)でエスケープ済みの文字列を組み立てて渡す。
+    window.printMedicalRecord = function (html) {
+      var w = window.open('', '_blank');
+      if (!w) {
+        alert('ポップアップがブロックされました。ブラウザの設定で許可してください。');
+        return false;
+      }
+      w.document.open();
+      w.document.write(html);
+      w.document.close();
+      // 描画完了を待ってから印刷ダイアログを開く
+      w.onload = function () {
+        w.focus();
+        w.print();
+      };
+      return true;
+    };
+  </script>
   <script src="flutter_bootstrap.js?v=DEPLOY_TIMESTAMP" async></script>
 </body>
 </html>
