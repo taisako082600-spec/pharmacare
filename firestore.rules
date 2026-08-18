@@ -183,7 +183,18 @@ service cloud.firestore {
     // isAdmin()のOR分岐がないと、管理者がこの機能で入った瞬間にほぼ全ての画面でpermission-denied
     // になる(2026-07-19に発見・修正)。
     match /rooms/{roomId} {
-      allow read: if isSignedIn() && (belongsToFacility(resource.data.facilityId) || isAdmin());
+      // まだ一度も発言のないルームは、ドキュメント自体が存在しない。
+      // その状態で resource.data.facilityId を参照するとルール評価に失敗し、
+      // permission-denied になる(チャット一覧で新規入居者のタイルだけが
+      // 「Missing or insufficient permissions」になる不具合。2026-08-18に実機で発覚)。
+      //
+      // ルームIDは "{facilityId}_..." の形式なので、ドキュメントが無い場合は
+      // ID の施設部分で判定する。これなら自分の施設のルームに限定できる。
+      allow read: if isSignedIn() && (
+        isAdmin()
+        || (resource != null && belongsToFacility(resource.data.facilityId))
+        || (resource == null && belongsToFacility(roomId.split('_')[0]))
+      );
       // create/updateを分離: 新規作成時はresourceがまだ存在せずresource.data.facilityIdが
       // 評価できないため、常にfalseになり新規ルーム作成自体が弾かれてしまう不具合があった。
       // createはrequest.resource(書き込み後の状態)で判定する。

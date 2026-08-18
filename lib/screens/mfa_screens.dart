@@ -77,6 +77,8 @@ class MfaSettingsScreen extends StatefulWidget {
 class _MfaSettingsScreenState extends State<MfaSettingsScreen> {
   bool _loading = true;
   bool _enrolled = false;
+  bool _emailVerified = false;
+  bool _verificationSent = false;
   String? _error;
 
   // 登録手続き中に保持する情報
@@ -99,9 +101,12 @@ class _MfaSettingsScreenState extends State<MfaSettingsScreen> {
   Future<void> _refresh() async {
     setState(() => _loading = true);
     try {
+      // メール確認の状態はサーバーから取り直す(確認直後でも反映されるように)
+      final verified = await MfaService().isEmailVerified();
       final enrolled = await MfaService().isEnrolled();
       if (!mounted) return;
       setState(() {
+        _emailVerified = verified;
         _enrolled = enrolled;
         _loading = false;
       });
@@ -110,6 +115,28 @@ class _MfaSettingsScreenState extends State<MfaSettingsScreen> {
       setState(() {
         _error = '状態を取得できませんでした: $e';
         _loading = false;
+      });
+    }
+  }
+
+  Future<void> _sendVerification() async {
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+    try {
+      await MfaService().sendEmailVerification();
+      if (!mounted) return;
+      setState(() {
+        _verificationSent = true;
+        _submitting = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        // 短時間に何度も送るとFirebase側で弾かれる
+        _error = '確認メールを送れませんでした。しばらく待ってからもう一度お試しください';
+        _submitting = false;
       });
     }
   }
@@ -239,6 +266,9 @@ class _MfaSettingsScreenState extends State<MfaSettingsScreen> {
                   ],
                   if (_enrolled)
                     _buildEnrolledView()
+                  else if (!_emailVerified)
+                    // メールアドレスの確認が済むまでは二要素認証を登録できない
+                    _buildEmailVerificationView()
                   else if (_enrollment != null)
                     _buildEnrollmentSteps()
                   else
@@ -246,6 +276,104 @@ class _MfaSettingsScreenState extends State<MfaSettingsScreen> {
                 ],
               ),
             ),
+    );
+  }
+
+  /// メールアドレス未確認のときの画面。
+  /// Firebaseの仕様上、確認が済むまで二要素認証は登録できない。
+  Widget _buildEmailVerificationView() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.orange.shade50,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.orange.shade200),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.mark_email_unread_outlined, color: Colors.orange[800]),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'はじめに、メールアドレスの確認が必要です',
+                  style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange[900]),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        Text(
+          '二要素認証は「${widget.accountName}」に紐づけて設定します。\n'
+          'ご本人のアドレスであることを確認してからでないと設定できません。',
+          style: const TextStyle(fontSize: 13.5, height: 1.6),
+        ),
+        const SizedBox(height: 20),
+
+        if (!_verificationSent) ...[
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _submitting ? null : _sendVerification,
+              icon: const Icon(Icons.send_outlined),
+              label: const Text('確認メールを送る'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+            ),
+          ),
+        ] else ...[
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('確認メールを送りました',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
+                SizedBox(height: 8),
+                Text(
+                  'メール内のリンクを開いたあと、下の「確認できたか見る」を押してください。\n'
+                  'メールが見当たらない場合は、迷惑メールフォルダもご確認ください。',
+                  style: TextStyle(fontSize: 12.5, height: 1.6),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _submitting ? null : _refresh,
+              icon: const Icon(Icons.refresh),
+              label: const Text('確認できたか見る'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Center(
+            child: TextButton(
+              onPressed: _submitting ? null : _sendVerification,
+              child: const Text('メールをもう一度送る'),
+            ),
+          ),
+        ],
+      ],
     );
   }
 

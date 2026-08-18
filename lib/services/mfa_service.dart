@@ -30,6 +30,29 @@ class MfaService {
     return factors.isNotEmpty;
   }
 
+  /// メールアドレスが確認済みか。
+  ///
+  /// Firebaseは、メールアドレスの確認が済んでいないアカウントでは二要素認証を
+  /// 登録させない(auth/unverified-email)。本人でないアドレスに二要素認証を
+  /// 紐づけてしまうと復旧できなくなるための仕様。
+  /// 画面側は登録を始める前にこれを確認し、未確認なら先に確認メールを送る。
+  Future<bool> isEmailVerified() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return false;
+    // 確認直後でもローカルの状態は古いままなので、サーバーから取り直す
+    await user.reload();
+    return FirebaseAuth.instance.currentUser?.emailVerified ?? false;
+  }
+
+  /// 確認メールを送る。
+  Future<void> sendEmailVerification() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      throw StateError('ログインしていません');
+    }
+    await user.sendEmailVerification();
+  }
+
   /// 登録済みの要素一覧(解除画面で表示する用)。
   Future<List<MultiFactorInfo>> enrolledFactors() async {
     final user = FirebaseAuth.instance.currentUser;
