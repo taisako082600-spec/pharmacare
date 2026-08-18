@@ -37,10 +37,13 @@ func main() {
 
 	firebaseProjectID := os.Getenv("FIREBASE_PROJECT_ID")
 
+	// withCORS は requireAuth より必ず外側に置く。
+	// ブラウザのプリフライト(OPTIONS)には Authorization ヘッダーが付かないため、
+	// 内側に置くと認証で401になり、本リクエストが永久に飛ばない。
 	mux := http.NewServeMux()
-	mux.HandleFunc("/v1/analyze-medication", requireAuth(firebaseProjectID, srv.analyzeMedicationHandler))
-	mux.HandleFunc("/v1/triage", requireAuth(firebaseProjectID, srv.triageHandler))
-	mux.HandleFunc("/v1/admin/fetch-drug-label", requireAuth(firebaseProjectID, srv.adminFetchDrugLabelHandler))
+	mux.HandleFunc("/v1/analyze-medication", withCORS(requireAuth(firebaseProjectID, srv.analyzeMedicationHandler)))
+	mux.HandleFunc("/v1/triage", withCORS(requireAuth(firebaseProjectID, srv.triageHandler)))
+	mux.HandleFunc("/v1/admin/fetch-drug-label", withCORS(requireAuth(firebaseProjectID, srv.adminFetchDrugLabelHandler)))
 	mux.HandleFunc("/healthz", srv.healthHandler)
 	// Cloud Run は末尾が "z" のパスを予約URLパスとして扱い、エッジ層で処理するため
 	// コンテナに到達しない(公式ドキュメント「Cloud Run の既知の問題」に記載。
