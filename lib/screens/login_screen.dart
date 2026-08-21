@@ -5,6 +5,7 @@ import '../services/audit_service.dart';
 import '../services/mfa_service.dart';
 import '../models/user_model.dart';
 import 'mfa_screens.dart';
+import 'mfa_required_screen.dart';
 import 'main_shell.dart';
 import 'admin/admin_shell.dart';
 import 'register_screen.dart';
@@ -91,6 +92,20 @@ class _LoginScreenState extends State<LoginScreen> {
       documentId: user.uid,
       facilityId: user.facilityId,
     );
+
+    if (!mounted) return;
+
+    // 二要素認証が必須のアカウントで、まだ登録していない場合は先に設定させる。
+    // 設定を途中でやめた人が、未登録のまま入り続けるのを防ぐ
+    // (Firebase 自体は未登録者のサインインを通すため、ここで止めるしかない)。
+    if (user.mfaRequired && !await MfaService().isEnrolled()) {
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => MfaRequiredScreen(user: user)),
+      );
+      return;
+    }
 
     if (!mounted) return;
     if (user.isAdmin) {

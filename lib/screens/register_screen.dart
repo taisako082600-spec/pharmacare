@@ -7,6 +7,7 @@ import '../services/auth_service.dart';
 import '../services/password_policy.dart';
 import '../models/user_model.dart';
 import 'main_shell.dart';
+import 'mfa_required_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -150,6 +151,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           facilityId: facilityId,
           email: email,
           facilityIds: [facilityId],
+          mfaRequired: _selectedRole != '家族',
         );
 
         // 招待コードをダイアログで表示してからメイン画面へ
@@ -191,7 +193,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         );
 
         if (!mounted) return;
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => MainShell(user: user)));
+        _goAfterSignUp(user);
 
       } else {
         // 招待コードで参加（介護士・看護師・薬剤師共通）
@@ -240,8 +242,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
           email: email,
           facilityIds: [facilityId],
           linkedPatientId: _linkedPatientId ?? '',
+          mfaRequired: _selectedRole != '家族',
         );
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => MainShell(user: user)));
+        _goAfterSignUp(user);
       }
     } on FirebaseAuthException catch (e) {
       // Auth登録失敗 → 施設は未作成なのでロールバック不要
@@ -284,6 +287,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (!mounted) return;
       setState(() { _error = '登録に失敗しました。もう一度お試しください。'; _loading = false; });
     }
+  }
+
+  /// 登録完了後の遷移先。
+  ///
+  /// 職員アカウントは二要素認証の設定を済ませてからでないとアプリ本体に入れない。
+  /// 「作成時に必須」にしておけば、未登録のまま運用に入るアカウントが生まれず、
+  /// 後から一律必須へ切り替えるときに誰も締め出されない。
+  void _goAfterSignUp(UserModel user) {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => user.mfaRequired
+            ? MfaRequiredScreen(user: user)
+            : MainShell(user: user),
+      ),
+    );
   }
 
   String _generateCode() {

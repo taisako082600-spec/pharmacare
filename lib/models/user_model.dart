@@ -9,6 +9,17 @@ class UserModel {
   final List<String> facilityIds;
   final String linkedPatientId; // 家族ロール用
 
+  /// 二要素認証の登録を必須とするアカウントか。
+  ///
+  /// アカウント作成時に職員ロールへ立てる。true の場合、登録が済むまで
+  /// アプリ本体に入れない(`login_screen` と `register_screen` が判定)。
+  ///
+  /// 既存アカウントにこのフラグは無く(=false)、締め出されない。
+  /// 全員の登録が済んだ時点で、既存ユーザーにも一括で立てて一律必須に切り替える。
+  /// Firebase は未登録者のサインイン自体は通す仕様で、必須化はアプリ側の責任、と
+  /// 公式ドキュメントに明記されている。
+  final bool mfaRequired;
+
   UserModel({
     required this.uid,
     required this.name,
@@ -19,6 +30,7 @@ class UserModel {
     this.isAdmin = false,
     this.facilityIds = const [],
     this.linkedPatientId = '',
+    this.mfaRequired = false,
   });
 
   bool get isPharmacist => role == '薬剤師';
@@ -46,6 +58,7 @@ class UserModel {
       isAdmin: map['isAdmin'] ?? false,
       facilityIds: List<String>.from(map['facilityIds'] ?? [map['facilityId'] ?? '']),
       linkedPatientId: map['linkedPatientId'] ?? '',
+      mfaRequired: map['mfaRequired'] ?? false,
     );
   }
 

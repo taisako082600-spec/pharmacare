@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import '../services/mfa_service.dart';
 
 /// ログイン時に認証アプリの6桁を入力してもらうダイアログ。
@@ -440,9 +441,31 @@ class _MfaSettingsScreenState extends State<MfaSettingsScreen> {
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
         const SizedBox(height: 8),
         const Text(
-          '認証アプリで「アカウントを追加」→「キーを手動入力」を選び、'
-          '下のキーをそのまま入力してください。',
+          '認証アプリの「＋」から読み取り画面を開き、下のQRコードを写してください。',
           style: TextStyle(fontSize: 13, height: 1.6),
+        ),
+        const SizedBox(height: 12),
+        Center(
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border.all(color: Colors.grey.shade300),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: QrImageView(
+              data: e.qrCodeUrl,
+              version: QrVersions.auto,
+              size: 180,
+              backgroundColor: Colors.white,
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        const Text(
+          'この画面をスマートフォンで見ているなど、カメラで写せないときは、'
+          '「キーを手動入力」を選んで下の文字列を貼り付けてください。',
+          style: TextStyle(fontSize: 12, color: Colors.black54, height: 1.6),
         ),
         const SizedBox(height: 12),
         Container(

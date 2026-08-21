@@ -61,7 +61,7 @@ Google Cloud（Firebase / Cloud Run）が**対象事業者B（PaaS・IaaS事業�
 | 項目 | 実装 |
 |---|---|
 | 利用者認証 | メールアドレス＋パスワード。パスワードは13文字以上・英数字混在・脆弱パターン拒否（`lib/services/password_policy.dart`） |
-| 二要素認証 | TOTP方式（認証アプリ）。`lib/services/mfa_service.dart`。登録前にメールアドレス確認を必須化 |
+| 二要素認証 | TOTP方式（認証アプリ）。ログイン時にパスワード確認後、登録済みの利用者へ6桁を要求。**現在は任意設定で、登録者は0名**（[COMPLIANCE.md](COMPLIANCE.md) 参照）。登録前にメールアドレス確認を必須化 |
 | 自動ログアウト | 無操作15分でサインアウト（`lib/services/idle_timeout.dart`） |
 | 権限分離 | 施設スタッフ／薬剤師／家族／管理者のロール。家族は紐づく入居者の情報のみ参照可 |
 | サーバ側アクセス制御 | Firestore セキュリティルール（`firestore.rules`）。クライアントの実装に依存せずサーバ側で強制 |
