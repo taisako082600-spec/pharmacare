@@ -1,6 +1,7 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user_model.dart';
+import '../theme/app_theme.dart';
 import '../services/mfa_service.dart';
 import 'mfa_screens.dart';
 import 'home_screen.dart';
@@ -93,15 +94,9 @@ class _MainShellState extends State<MainShell> {
     }
   }
 
-  Color get _themeColor {
-    switch (widget.user.role) {
-      case '薬剤師': return const Color(0xFF1976D2);
-      case '介護士': return const Color(0xFF388E3C);
-      case '看護師': return const Color(0xFFD32F2F);
-      case '家族': return const Color(0xFF6A1B9A);
-      default: return const Color(0xFF388E3C);
-    }
-  }
+  /// 立場を示す色。原色をそのまま使うと画面全体が派手になり、
+  /// 医療情報を扱う道具として落ち着かないので、AppTheme 側で彩度を抑えた値に寄せた。
+  Color get _themeColor => AppTheme.roleColor(widget.user.role);
 
   // チャット未読数を取得（施設限定で効率化）
   Stream<bool> _hasUnreadChat() {

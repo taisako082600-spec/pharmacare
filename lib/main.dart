@@ -3,6 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'services/idle_timeout.dart';
+import 'theme/app_theme.dart';
 import 'screens/login_screen.dart';
 import 'screens/main_shell.dart';
 import 'screens/admin/admin_shell.dart';
@@ -36,20 +37,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'ファーマケア',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1976D2)),
-        useMaterial3: true,
-        splashFactory: InkRipple.splashFactory,
-        highlightColor: Colors.transparent,
-        pageTransitionsTheme: const PageTransitionsTheme(
-          builders: {
-            TargetPlatform.android: FadeUpwardsPageTransitionsBuilder(),
-            TargetPlatform.linux: FadeUpwardsPageTransitionsBuilder(),
-            TargetPlatform.macOS: FadeUpwardsPageTransitionsBuilder(),
-            TargetPlatform.windows: FadeUpwardsPageTransitionsBuilder(),
-          },
-        ),
-      ),
+      theme: AppTheme.build(),
       // 無操作が続いたら自動でサインアウトする(ガイドライン システム運用編 12.3.2)。
       // アプリ全体を包むことで、どの画面で放置されても働く。
       builder: (context, child) => IdleTimeout(child: child ?? const SizedBox.shrink()),

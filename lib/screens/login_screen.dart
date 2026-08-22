@@ -4,6 +4,7 @@ import '../services/auth_service.dart';
 import '../services/audit_service.dart';
 import '../services/mfa_service.dart';
 import '../models/user_model.dart';
+import '../theme/app_theme.dart';
 import 'mfa_screens.dart';
 import 'mfa_required_screen.dart';
 import 'main_shell.dart';
@@ -121,7 +122,8 @@ class _LoginScreenState extends State<LoginScreen> {
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [Color(0xFF0D47A1), Color(0xFF1976D2), Color(0xFF42A5F5)],
+            // 原色の青3段から、濃紺→青緑へ。医療の道具らしさを保ちつつ現代的に見せる。
+            colors: [AppTheme.ink, Color(0xFF14384F), AppTheme.accentDeep],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -147,8 +149,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
                       color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 30, offset: const Offset(0, 15))],
+                      borderRadius: BorderRadius.circular(18),
+                      // 影は濃紺寄りに、薄く広く。黒い影より沈んで見えず、締まって見える。
+                      boxShadow: [BoxShadow(color: AppTheme.ink.withValues(alpha: 0.22), blurRadius: 40, offset: const Offset(0, 18))],
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -205,7 +208,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           child: ElevatedButton(
                             onPressed: _loading ? null : _login,
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF1976D2),
+                              backgroundColor: AppTheme.accentDeep,
                               foregroundColor: Colors.white,
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                             ),
