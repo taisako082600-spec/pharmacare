@@ -31,8 +31,43 @@ function patchBuildFiles() {
   indexHtml = indexHtml.replace(/DEPLOY_TIMESTAMP/g, TIMESTAMP);
   fs.writeFileSync(indexPath, indexHtml);
 
+  pruneOldBundles(newJsName);
+
   console.log(`Patched: main.dart.js → ${newJsName}`);
   return newJsName;
+}
+
+// 古い main.dart.{timestamp}.js を捨てる。
+//
+// 毎回コピーを作る一方で消していなかったため、build/web に83個・268MBが溜まり、
+// デプロイのたびに全部アップロードしていた(2026-08-22に発見。119ファイル→43ファイル)。
+//
+// index.html は no-cache 配信なので、読み込みのたびに最新の index.html が取れ、
+// そこから最新のバンドルだけが参照される。よって古い分は本来不要。
+// ただし既に開いたままのタブが直前のバンドルを掴んでいることはあるので、
+// 直前の1世代だけ残す。
+const KEEP_GENERATIONS = 1;
+
+function pruneOldBundles(currentName) {
+  const bundles = fs.readdirSync(BUILD_DIR)
+    .filter((f) => /^main\.dart\.\d+\.js$/.test(f) && f !== currentName)
+    .sort()
+    .reverse(); // 新しい順
+
+  const stale = bundles.slice(KEEP_GENERATIONS);
+  if (stale.length === 0) return;
+
+  let freed = 0;
+  for (const f of stale) {
+    const p = path.join(BUILD_DIR, f);
+    try {
+      freed += fs.statSync(p).size;
+      fs.unlinkSync(p);
+    } catch {
+      // 消せなくてもデプロイは続行する(次回また拾う)
+    }
+  }
+  console.log(`Pruned ${stale.length} old bundle(s), freed ${(freed / 1024 / 1024).toFixed(1)} MB`);
 }
 
 function httpsRequest(options, body) {
