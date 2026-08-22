@@ -6,6 +6,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../models/user_model.dart';
 import '../services/mfa_service.dart';
 import 'main_shell.dart';
+import 'mfa_screens.dart' show showReauthDialog;
 
 /// 二要素認証の登録が済むまでアプリ本体に入れない画面。
 ///
@@ -64,13 +65,37 @@ class _MfaRequiredScreenState extends State<MfaRequiredScreen> {
       if (!mounted) return;
 
       if (verified && _start == null) {
-        _start = await MfaService().startEnrollment(accountName: widget.user.email);
+        _start = await _startEnrollmentWithReauth();
+        if (_start == null) {
+          if (!mounted) return;
+          setState(() { _emailVerified = verified; _busy = false; });
+          return;
+        }
       }
       if (!mounted) return;
       setState(() { _emailVerified = verified; _busy = false; });
     } catch (e) {
       if (!mounted) return;
       setState(() { _error = _readable(e); _busy = false; });
+    }
+  }
+
+  /// 登録用のキーを取得する。直近ログインが古いと Firebase に拒まれるので、
+  /// その場合はパスワードを聞き直してから一度だけ再試行する。
+  Future<TotpEnrollmentStart?> _startEnrollmentWithReauth() async {
+    try {
+      return await MfaService().startEnrollment(accountName: widget.user.email);
+    } catch (e) {
+      if (!MfaService.isRecentLoginRequired(e) || !mounted) rethrow;
+
+      final password = await showReauthDialog(context);
+      if (password == null || password.isEmpty) {
+        if (!mounted) return null;
+        setState(() => _error = '本人確認が済むまで設定を続けられません');
+        return null;
+      }
+      await MfaService().reauthenticate(password);
+      return MfaService().startEnrollment(accountName: widget.user.email);
     }
   }
 
@@ -124,14 +149,14 @@ class _MfaRequiredScreenState extends State<MfaRequiredScreen> {
   }
 
   String _readable(Object e) {
-    final s = e.toString();
-    if (s.contains('unverified-email')) {
-      return 'メールアドレスの確認が済んでいません。受信箱のリンクを開いてから、もう一度お試しください';
+    if (MfaService.isUnverifiedEmail(e)) {
+      return 'メールアドレスの確認が済んでいません。受信箱のリンクを開いてから、'
+          '「確認しました」を押してください';
     }
-    if (s.contains('requires-recent-login')) {
-      return '時間が経ちすぎました。一度ログインし直してください';
-    }
-    return '設定を進められませんでした。通信状況をご確認ください';
+    if (e is StateError) return 'ログインし直してください';
+    // 原因の切り分けができるよう、コードだけは残す
+    return '設定を進められませんでした（${MfaService.errorCode(e)}）。'
+        '通信状況をご確認のうえ、もう一度お試しください';
   }
 
   @override

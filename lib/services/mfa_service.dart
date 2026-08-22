@@ -60,6 +60,35 @@ class MfaService {
     return user.multiFactor.getEnrolledFactors();
   }
 
+  /// 直近のログインからの経過が長いと、Firebase は二要素認証の登録を拒否する
+  /// (`auth/requires-recent-login`)。乗っ取られたセッションで second factor を
+  /// 勝手に足されないための仕様。
+  ///
+  /// 画面側はこれを捕まえて、パスワードを聞き直してから登録を再開する。
+  static bool isRecentLoginRequired(Object e) =>
+      e is FirebaseAuthException && e.code == 'requires-recent-login';
+
+  /// メールアドレス未確認で登録できない状態か。
+  static bool isUnverifiedEmail(Object e) =>
+      e is FirebaseAuthException && e.code == 'unverified-email';
+
+  /// 原因を切り分けられるよう、Firebase のエラーコードを取り出す。
+  /// 画面に出す文言は呼び出し側で用意し、これは括弧書きの補足に使う。
+  static String errorCode(Object e) =>
+      e is FirebaseAuthException ? e.code : e.runtimeType.toString();
+
+  /// パスワードを再入力してもらい、直近ログインの状態に戻す。
+  Future<void> reauthenticate(String password) async {
+    final user = FirebaseAuth.instance.currentUser;
+    final email = user?.email;
+    if (user == null || email == null) {
+      throw StateError('ログインしていません');
+    }
+    await user.reauthenticateWithCredential(
+      EmailAuthProvider.credential(email: email, password: password),
+    );
+  }
+
   /// 登録の第1段階。認証アプリに読み込ませるQRコードURLと、手入力用の秘密鍵を作る。
   ///
   /// 返した [TotpSecret] は [completeEnrollment] にそのまま渡す必要があるため、

@@ -3,6 +3,59 @@ import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../services/mfa_service.dart';
 
+/// 再認証のためにパスワードを聞き直すダイアログ。
+///
+/// 二要素認証の登録は、直近のログインから時間が経っていると Firebase に拒否される
+/// (`auth/requires-recent-login`)。乗っ取られたセッションで勝手に second factor を
+/// 足されないための仕様なので、いったんパスワードで本人確認をやり直す。
+///
+/// 戻り値は入力されたパスワード。キャンセルなら null。
+Future<String?> showReauthDialog(BuildContext context) {
+  final ctrl = TextEditingController();
+  var obscure = true;
+  return showDialog<String>(
+    context: context,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setLocal) => AlertDialog(
+        title: const Text('パスワードをもう一度入力してください'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'ログインしてから時間が経っています。安全のため、'
+              '設定を続ける前に本人確認をさせてください。',
+              style: TextStyle(fontSize: 13, height: 1.6),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: ctrl,
+              obscureText: obscure,
+              autofocus: true,
+              decoration: InputDecoration(
+                labelText: 'パスワード',
+                border: const OutlineInputBorder(),
+                suffixIcon: IconButton(
+                  icon: Icon(obscure ? Icons.visibility_off : Icons.visibility),
+                  onPressed: () => setLocal(() => obscure = !obscure),
+                ),
+              ),
+              onSubmitted: (v) => Navigator.pop(ctx, v),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('キャンセル')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, ctrl.text),
+            child: const Text('確認'),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
 /// ログイン時に認証アプリの6桁を入力してもらうダイアログ。
 /// 入力された6桁を返す。キャンセルされたら null。
 Future<String?> showTotpChallengeDialog(BuildContext context) {
@@ -142,7 +195,7 @@ class _MfaSettingsScreenState extends State<MfaSettingsScreen> {
     }
   }
 
-  Future<void> _startEnrollment() async {
+  Future<void> _startEnrollment({bool retriedAfterReauth = false}) async {
     setState(() {
       _submitting = true;
       _error = null;
@@ -156,8 +209,31 @@ class _MfaSettingsScreenState extends State<MfaSettingsScreen> {
       });
     } catch (e) {
       if (!mounted) return;
+
+      // ログインから時間が経っていると Firebase が登録を拒む。
+      // パスワードを聞き直して本人確認をやり直し、一度だけ自動で再試行する。
+      if (MfaService.isRecentLoginRequired(e) && !retriedAfterReauth) {
+        setState(() => _submitting = false);
+        final password = await showReauthDialog(context);
+        if (password == null || password.isEmpty) return;
+        try {
+          await MfaService().reauthenticate(password);
+          if (!mounted) return;
+          await _startEnrollment(retriedAfterReauth: true);
+          return;
+        } catch (_) {
+          if (!mounted) return;
+          setState(() => _error = 'パスワードが正しくありません。もう一度お試しください');
+          return;
+        }
+      }
+
       setState(() {
-        _error = '設定を開始できませんでした: $e';
+        _error = MfaService.isUnverifiedEmail(e)
+            ? 'メールアドレスの確認が済んでいません。確認メールのリンクを開いてから、'
+                '「状態を更新」を押してください'
+            : '設定を開始できませんでした（${MfaService.errorCode(e)}）。'
+                '時間をおいて、もう一度お試しください';
         _submitting = false;
       });
     }
