@@ -1,6 +1,7 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user_model.dart';
+import '../theme/app_theme.dart';
 
 class HomeScreen extends StatelessWidget {
   final UserModel user;
@@ -198,37 +199,50 @@ class _CareWorkerHome extends StatelessWidget {
   Widget build(BuildContext context) {
     final now = DateTime.now();
 
+    // 情報の並び順を「今日 → 数字 → 詳細」に組み替えている。
+    // 以前はグラデーションの挨拶が画面上部160pxを占め、その下に同じ重みの
+    // セクションが等間隔で続いていたため、何を先に見ればよいか分からなかった。
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
+      backgroundColor: AppTheme.canvas,
       body: CustomScrollView(
         slivers: [
+          // 見出しは濃紺の面。グラデーションをやめ、施設名を主役にする。
           SliverAppBar(
-            expandedHeight: 160,
-            floating: false,
+            expandedHeight: 132,
             pinned: true,
-            backgroundColor: themeColor,
+            backgroundColor: AppTheme.ink,
+            foregroundColor: Colors.white,
             actions: [
               IconButton(
-                icon: const Icon(Icons.notifications_outlined, color: Colors.white),
+                icon: const Icon(Icons.notifications_none_rounded, color: Colors.white),
                 onPressed: () => _showNotifications(context, user.facilityId),
               ),
             ],
             flexibleSpace: FlexibleSpaceBar(
               background: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(colors: [themeColor, themeColor.withValues(alpha: 0.75)], begin: Alignment.topLeft, end: Alignment.bottomRight),
-                ),
-                padding: const EdgeInsets.fromLTRB(20, 60, 20, 16),
+                color: AppTheme.ink,
+                padding: const EdgeInsets.fromLTRB(22, 62, 22, 18),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    Text('こんにちは、${user.name}さん', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
-                    const SizedBox(height: 4),
                     Text(
-                      '${user.facilityName.isNotEmpty ? user.facilityName : "施設未設定"} · ${user.displayRole}',
-                      style: const TextStyle(fontSize: 13, color: Colors.white70),
+                      _todayLabel(now),
+                      style: const TextStyle(
+                        fontSize: 12, color: Color(0xFF8FA0BA),
+                        letterSpacing: 1.4, fontWeight: FontWeight.w600),
                     ),
+                    const SizedBox(height: 6),
+                    Text(
+                      user.facilityName.isNotEmpty ? user.facilityName : '施設未設定',
+                      style: const TextStyle(
+                        fontSize: 23, fontWeight: FontWeight.w700,
+                        color: Colors.white, letterSpacing: -0.3),
+                      maxLines: 1, overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 3),
+                    Text('${user.name}さん · ${user.displayRole}',
+                        style: const TextStyle(fontSize: 13, color: Color(0xFFAFBED4))),
                   ],
                 ),
               ),
@@ -236,35 +250,58 @@ class _CareWorkerHome extends StatelessWidget {
           ),
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(18, 20, 18, 36),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _DateCard(now: now),
-                  const SizedBox(height: 20),
                   if (user.facilityId.isEmpty)
                     _EmptyConnectionCard()
                   else ...[
+                    // 数字を最初に、大きく。ひと目で規模と要対応がつかめる。
                     _CareWorkerSummary(user: user, themeColor: themeColor),
-                    const SizedBox(height: 20),
-                    _SectionHeader(title: '担当薬剤師', icon: Icons.local_pharmacy_outlined, color: themeColor),
-                    const SizedBox(height: 8),
-                    _AssignedPharmacistsCard(facilityId: user.facilityId, themeColor: themeColor),
-                    const SizedBox(height: 20),
-                    _SectionHeader(title: '直近の予定', icon: Icons.event_outlined, color: themeColor),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 30),
+                    const _SectionLabel('直近の予定'),
                     _UpcomingEventsCard(facilityIds: [user.facilityId], themeColor: themeColor),
-                    const SizedBox(height: 20),
-                    _SectionHeader(title: '最新メッセージ', icon: Icons.chat_bubble_outline, color: themeColor),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 30),
+                    const _SectionLabel('最新メッセージ'),
                     _RecentChatsCard(user: user, themeColor: themeColor),
+                    const SizedBox(height: 30),
+                    const _SectionLabel('担当薬剤師'),
+                    _AssignedPharmacistsCard(facilityId: user.facilityId, themeColor: themeColor),
                   ],
-                  const SizedBox(height: 30),
                 ],
               ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  static String _todayLabel(DateTime now) {
+    const w = ['月', '火', '水', '木', '金', '土', '日'];
+    return '${now.month}月${now.day}日（${w[now.weekday - 1]}）';
+  }
+}
+
+/// 節の見出し。アイコンと色を外し、小さく静かな文字だけにした。
+/// 見出しが主張すると、その下の中身と重みが競合して視線が定まらない。
+class _SectionLabel extends StatelessWidget {
+  final String text;
+  const _SectionLabel(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 2, bottom: 12),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontSize: 12.5,
+          fontWeight: FontWeight.w700,
+          color: AppTheme.textSub,
+          letterSpacing: 0.6,
+        ),
       ),
     );
   }
@@ -517,25 +554,25 @@ class _CareWorkerSummaryState extends State<_CareWorkerSummary> {
                 label: '入居者',
                 value: '${data.patCount}名',
                 icon: Icons.people,
-                color: widget.themeColor,
+                color: AppTheme.ink,
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 12),
             Expanded(
               child: _SummaryTile(
                 label: '今後の予定',
                 value: '${data.eventCount}件',
                 icon: Icons.event,
-                color: Colors.orange,
+                color: AppTheme.accentDeep,
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 12),
             Expanded(
               child: _SummaryTile(
                 label: '担当薬剤師',
                 value: '${data.pharCount}名',
                 icon: Icons.local_pharmacy,
-                color: const Color(0xFF1976D2),
+                color: AppTheme.ink,
               ),
             ),
           ],
@@ -554,15 +591,43 @@ class _SummaryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 数字を主役にする。以前はアイコン・数値・ラベルが近い大きさで並んでいて、
+    // 一番読みたい数字が埋もれていた。単位はラベル側に逃がして数字だけ大きくする。
+    final n = value.replaceAll(RegExp(r'[^0-9]'), '');
+    final unit = value.replaceAll(RegExp(r'[0-9]'), '');
+
     return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppTheme.line),
+      ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: color, size: 22),
-          const SizedBox(height: 4),
-          Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color)),
-          Text(label, style: const TextStyle(fontSize: 10, color: Colors.black54), textAlign: TextAlign.center),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(
+                n.isEmpty ? value : n,
+                style: TextStyle(
+                  fontSize: 30, fontWeight: FontWeight.w700,
+                  color: color, letterSpacing: -0.8, height: 1.0),
+              ),
+              if (unit.isNotEmpty) ...[
+                const SizedBox(width: 3),
+                Text(unit,
+                    style: TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w600,
+                      color: color.withValues(alpha: 0.75))),
+              ],
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(label,
+              style: const TextStyle(fontSize: 12, color: AppTheme.textSub, height: 1.3)),
         ],
       ),
     );
