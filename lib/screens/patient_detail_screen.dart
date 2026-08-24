@@ -1079,6 +1079,20 @@ class _VisitCard extends StatefulWidget {
 }
 
 class _VisitCardState extends State<_VisitCard> {
+  /// 服薬注意点を見せる相手。
+  ///
+  /// 以前は薬剤師だけに出していたが、それでは意味がない。
+  /// 「ふらつきやすい」「低血糖に注意」といった添付文書由来の注意点は、
+  /// 毎日そばにいて最初に異変に気づく介護士・看護師のための情報であり、
+  /// 薬剤師は数字と薬歴から判断できる。観察する人に渡らなければ、
+  /// 副作用の早期発見という目的自体が果たせない。
+  ///
+  /// 家族ロールは対象外にしている。閲覧専用で記録を残す手段が無いうえ、
+  /// 添付文書の警告をそのまま渡すと、不安をあおったり自己判断での中止に
+  /// つながりかねないため。相談導線(チャット)を経由してもらう。
+  bool get _canSeeCautions =>
+      widget.user.isPharmacist || widget.user.isCareWorker;
+
   bool _cautionLoading = false;
   List<dynamic> _cautionDrugs = [];
   String _cautionMergedSummary = '';
@@ -1513,7 +1527,7 @@ class _VisitCardState extends State<_VisitCard> {
                   .where((n) => n.isNotEmpty)
                   .toList();
 
-              if (widget.isPharmacist) _maybeAutoFetchCautions(medicineNames);
+              if (_canSeeCautions) _maybeAutoFetchCautions(medicineNames);
 
               if (!medSnap.hasData) {
                 return const Padding(
@@ -1625,8 +1639,8 @@ class _VisitCardState extends State<_VisitCard> {
                     );
                   }),
 
-                  // 服薬注意点（添付文書ベース）― 薬剤師のみ、自動表示
-                  if (widget.isPharmacist && medicineNames.isNotEmpty) ...[
+                  // 服薬注意点（添付文書ベース）― 薬剤師と介護士・看護師に自動表示
+                  if (_canSeeCautions && medicineNames.isNotEmpty) ...[
                     Divider(height: 1, color: Colors.grey.shade100),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
@@ -1640,9 +1654,14 @@ class _VisitCardState extends State<_VisitCard> {
                   ],
 
                   // 副作用チェック（受診日経過後に表示）
+                  //
+                  // 「副作用はありましたか？」に答えられるのは、実際に様子を見ている
+                  // 介護士・看護師である。薬剤師限定にしていると、記録する人と
+                  // 観察する人が食い違って、結局埋まらない。記入者は checkedBy に
+                  // 残るので、誰の観察かは後から辿れる。
                   if (visitDate != null &&
                       DateTime.now().isAfter(visitDate) &&
-                      widget.isPharmacist) ...[
+                      _canSeeCautions) ...[
                     Divider(height: 1, color: Colors.grey.shade100),
                     _SideEffectCheckWidget(
                       patientId: patientId,
