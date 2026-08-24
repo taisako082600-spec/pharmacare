@@ -375,22 +375,140 @@ function arrow(s, x, y, w) {
     });
   });
 
-  const reqs = ['二要素認証', '操作の記録', '記録の書面出力', 'バックアップ'];
-  reqs.forEach((t, i) => {
-    const x = 0.8 + i * 3.02;
-    card(s, x, 4.5, 2.82, 0.85, 'FFFFFF', C.soft);
-    s.addShape(pres.ShapeType.ellipse, { x: x + 0.25, y: 4.72, w: 0.4, h: 0.4, fill: { color: C.mid }, line: { color: C.mid } });
-    s.addText('✓', { x: x + 0.25, y: 4.72, w: 0.4, h: 0.4, fontFace: F.jp, fontSize: T.small, bold: true, color: 'FFFFFF', align: 'center', valign: 'middle', margin: 0 });
-    s.addText(t, { x: x + 0.75, y: 4.75, w: 2.0, h: 0.4, fontFace: F.jp, fontSize: T.body, bold: true, color: C.deep, margin: 0 });
+  card(s, 0.8, 4.55, 11.7, 2.2, C.deep);
+  s.addText('どちらも「何を求めているか」から実装を決めています', {
+    x: 1.2, y: 4.8, w: 10.5, h: 0.45, fontFace: F.jp, fontSize: T.cardTitle, bold: true, color: 'FFFFFF', margin: 0,
+  });
+  s.addText(
+    '条文を先に読み、そこから必要な機能を起こしました。次の2枚で、要求事項と実装の対応を示します。',
+    { x: 1.2, y: 5.3, w: 10.6, h: 0.45, fontFace: F.jp, fontSize: T.body, color: C.soft, margin: 0 });
+  s.addText('できていないことも、そのまま開示します（最後の1枚）。', {
+    x: 1.2, y: 5.95, w: 10.6, h: 0.45, fontFace: F.jp, fontSize: T.body, color: C.amber, margin: 0,
+  });
+}
+
+// ══════════════════════════════════ 要求事項→実装 の対応表を描く共通処理
+//
+// 「どの条文に対して、何を作ったか」を1行で並べる。左が求められていること、
+// 右がコード上の実体。抽象論に見えないよう、右側には必ずファイル名か具体値を置く。
+function requirementTable(title, sub, rows, note) {
+  const s = light();
+  heading(s, title, sub);
+
+  const top = 2.05;
+  const rowH = 0.86;
+
+  // 見出し行
+  s.addText('ガイドラインが求めていること', {
+    x: 1.1, y: top, w: 5.6, h: 0.35,
+    fontFace: F.jp, fontSize: T.small, bold: true, color: C.inkSub, margin: 0,
+  });
+  s.addText('実装', {
+    x: 7.2, y: top, w: 5.3, h: 0.35,
+    fontFace: F.jp, fontSize: T.small, bold: true, color: C.inkSub, margin: 0,
   });
 
-  card(s, 0.8, 5.65, 11.7, 1.1, C.deep);
-  s.addText('できていないことも、隠さず書いています', {
-    x: 1.2, y: 5.85, w: 7, h: 0.4, fontFace: F.jp, fontSize: T.cardTitle, bold: true, color: 'FFFFFF', margin: 0,
+  rows.forEach(([ref, req, impl], i) => {
+    const y = top + 0.45 + i * rowH;
+    card(s, 0.8, y, 11.7, rowH - 0.1, i % 2 === 0 ? C.wash : 'FFFFFF', 'DCE6E4');
+
+    // 条文番号。どこ由来かを必ず添える
+    s.addText(ref, {
+      x: 1.1, y: y + 0.1, w: 5.6, h: 0.3,
+      fontFace: F.jp, fontSize: T.small - 1, bold: true, color: C.amber, margin: 0,
+    });
+    s.addText(req, {
+      x: 1.1, y: y + 0.38, w: 5.6, h: 0.36,
+      fontFace: F.jp, fontSize: T.body, color: C.ink, margin: 0,
+    });
+
+    // 対応を示す矢印
+    s.addShape(pres.ShapeType.rightArrow, {
+      x: 6.85, y: y + 0.28, w: 0.28, h: 0.22,
+      fill: { color: C.soft }, line: { color: C.soft },
+    });
+
+    s.addText(impl, {
+      x: 7.2, y: y + 0.24, w: 5.2, h: 0.42,
+      fontFace: F.jp, fontSize: T.body, bold: true, color: C.deep, margin: 0,
+    });
   });
-  s.addText('プライバシーマーク・ISMS認証は未取得です。開示書に未対応として明記しています。', {
-    x: 1.2, y: 6.28, w: 11.0, h: 0.4, fontFace: F.jp, fontSize: T.body, color: C.soft, margin: 0,
+
+  if (note) {
+    s.addText(note, {
+      x: 0.8, y: top + 0.45 + rows.length * rowH + 0.15, w: 11.7, h: 0.4,
+      fontFace: F.jp, fontSize: T.small, color: C.inkSub, italic: true, margin: 0,
+    });
+  }
+}
+
+// ══════════════════════════════════ 厚労省ガイドラインとの対応
+requirementTable(
+  '施設が守る側の要求に、機能で応える',
+  '医療情報システムの安全管理に関するガイドライン 第7.0版（厚生労働省）',
+  [
+    ['システム運用編 14 遵守事項⑤', '令和9年4月までに二要素認証を採用', '認証アプリの6桁（TOTP）'],
+    ['同 14.2', 'アクセス権限は必要最小限に', 'Firestoreルールで施設・ロール単位に分離'],
+    ['同 17①', '誰がいつ何を見たかを残す', '監査ログ。変更は前後の値まで記録'],
+    ['同 17②③', 'ログの改ざんを防ぐ', '追記のみ。更新と削除を禁止'],
+    ['同 12.3.2', '離席時に画面をロックする', '15分の無操作で自動サインアウト'],
+  ],
+  '※ 二要素認証は新規アカウントで登録必須にしています。既存の利用者は締め出さず、案内から順に移行します。',
+);
+
+// ══════════════════════════════════ 事業者ガイドラインとの対応
+requirementTable(
+  '提供者として直接問われる要求',
+  '医療情報を取り扱う情報システム・サービスの提供事業者における安全管理ガイドライン 第2.0版',
+  [
+    ['6.1', '国内法の執行が及ぶ範囲に置く', 'データ・処理系とも東京リージョン'],
+    ['6.2 真正性', '改変の事実と、その内容を残す', '変更前後の値・作成者・サーバー時刻'],
+    ['6.2 見読性', '画面表示に加え、書面を作成できる', '記録の印刷機能'],
+    ['6.2 保存性', '期間中は復元できる状態を保つ', '任意時点への復元・削除保護'],
+    ['4.1／4.2', '医療機関へ所定の項目を開示し、役割分担を明確にする', 'サービス仕様適合開示書'],
+  ],
+  '※ このガイドラインは医療機関ではなく、システムを提供する事業者そのものが名宛人です。',
+);
+
+// ══════════════════════════════════ 未対応（正直に出す）
+{
+  const s = light();
+  heading(s, 'できていないこと', '導入をご検討いただく前に、こちらからお伝えします');
+
+  const gaps = [
+    ['プライバシーマーク／ISMS認証', '未取得',
+      '事業者ガイドライン4.4が求めています。技術的な工夫では\n代替できず、審査期間と費用がかかるため事業判断が要ります。'],
+    ['第三者による安全管理の評価', '未実施',
+      '同4.3。現状は内部での確認に留まっています。'],
+    ['二要素認証の全員登録', '移行中',
+      '新規アカウントは登録必須にしました。既存の利用者は\n締め出さないよう、案内から順に進めています。'],
+  ];
+  gaps.forEach(([t, state, d], i) => {
+    const y = 2.15 + i * 1.5;
+    card(s, 0.8, y, 11.7, 1.32, C.wash);
+    s.addText(t, {
+      x: 1.15, y: y + 0.16, w: 6.2, h: 0.4,
+      fontFace: F.jp, fontSize: T.cardTitle, bold: true, color: C.deep, margin: 0,
+    });
+    // 状態のバッジ
+    card(s, 7.6, y + 0.18, 1.5, 0.42, C.amber);
+    s.addText(state, {
+      x: 7.6, y: y + 0.18, w: 1.5, h: 0.42,
+      fontFace: F.jp, fontSize: T.small, bold: true, color: 'FFFFFF',
+      align: 'center', valign: 'middle', margin: 0,
+    });
+    s.addText(d, {
+      x: 1.15, y: y + 0.6, w: 10.9, h: 0.62,
+      fontFace: F.jp, fontSize: T.small + 1, color: C.inkSub, margin: 0, lineSpacingMultiple: 1.2,
+    });
   });
+
+  card(s, 0.8, 6.7, 11.7, 0.65, C.deep);
+  s.addText('未対応の一覧は開示書にそのまま載せています。ご確認のうえ判断してください。', {
+    x: 1.2, y: 6.83, w: 10.8, h: 0.4,
+    fontFace: F.jp, fontSize: T.body, color: 'FFFFFF', margin: 0,
+  });
+  s.addNotes('隠さず出すことが、医療情報を預かる事業者としての信頼につながる。指摘される前に自分から言う。');
 }
 
 // ══════════════════════════════════ 第2部 扉
