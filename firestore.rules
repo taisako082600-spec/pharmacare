@@ -30,10 +30,28 @@ service cloud.firestore {
     }
 
     // ユーザー
+    // 本人だけが書き換えてはいけないフィールド。
+    //
+    // isAdmin() は users/{uid}.isAdmin を読んで判定しているため、本人が自分の
+    // ドキュメントを自由に更新できると `isAdmin: true` を自分で立てられてしまい、
+    // 全施設の患者情報へアクセスできる(2026-08-24の点検で発見)。
+    // role / linkedPatientId も同様で、'家族' + 任意の patientId を書けば
+    // その患者の情報が読める。mfaRequired は二要素認証の必須化を外せてしまう。
+    //
+    // いずれもアプリ上で本人が変更する導線は無いので、まとめて禁止する。
+    // facilityId / facilityIds は招待コードでの参加時に本人が書くため対象外。
+    function changesPrivilegedUserFields() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasAny(['isAdmin', 'role', 'linkedPatientId', 'mfaRequired']);
+    }
+
     match /users/{uid} {
       allow read: if isSignedIn();
-      allow create: if request.auth.uid == uid;
-      allow update: if request.auth.uid == uid || isAdmin();
+      // 作成時に自分を管理者にできないようにする
+      allow create: if request.auth.uid == uid
+                    && request.resource.data.isAdmin == false;
+      allow update: if isAdmin()
+                    || (request.auth.uid == uid && !changesPrivilegedUserFields());
       allow delete: if isAdmin();
     }
 
