@@ -120,34 +120,47 @@ class _PharmacistHome extends StatelessWidget {
     final now = DateTime.now();
     final facilityIds = user.facilityIds.isNotEmpty ? user.facilityIds : (user.facilityId.isNotEmpty ? [user.facilityId] : <String>[]);
 
+    // 介護士ホームと同じ組み方に揃える。
+    // 薬剤師にとって一番急ぐのは薬切れなので、それを最上段に置く。
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
+      backgroundColor: AppTheme.canvas,
       body: CustomScrollView(
         slivers: [
           SliverAppBar(
-            expandedHeight: 160,
-            floating: false,
+            expandedHeight: 132,
             pinned: true,
-            backgroundColor: themeColor,
+            backgroundColor: AppTheme.ink,
+            foregroundColor: Colors.white,
             actions: [
               IconButton(
-                icon: const Icon(Icons.notifications_outlined, color: Colors.white),
+                icon: const Icon(Icons.notifications_none_rounded, color: Colors.white),
                 onPressed: () => _showNotifications(context, user.facilityId),
               ),
             ],
             flexibleSpace: FlexibleSpaceBar(
               background: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(colors: [themeColor, themeColor.withValues(alpha: 0.75)], begin: Alignment.topLeft, end: Alignment.bottomRight),
-                ),
-                padding: const EdgeInsets.fromLTRB(20, 60, 20, 16),
+                color: AppTheme.ink,
+                padding: const EdgeInsets.fromLTRB(22, 62, 22, 18),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    Text('こんにちは、${user.name}さん', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
-                    const SizedBox(height: 4),
-                    Text('薬剤師 · 担当施設 ${facilityIds.length}件', style: const TextStyle(fontSize: 13, color: Colors.white70)),
+                    Text(
+                      _CareWorkerHome._todayLabel(now),
+                      style: const TextStyle(
+                        fontSize: 12, color: Color(0xFF8FA0BA),
+                        letterSpacing: 1.4, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      facilityIds.length == 1 ? '担当施設 1件' : '担当施設 ${facilityIds.length}件',
+                      style: const TextStyle(
+                        fontSize: 23, fontWeight: FontWeight.w700,
+                        color: Colors.white, letterSpacing: -0.3),
+                    ),
+                    const SizedBox(height: 3),
+                    Text('${user.name}さん · 薬剤師',
+                        style: const TextStyle(fontSize: 13, color: Color(0xFFAFBED4))),
                   ],
                 ),
               ),
@@ -155,31 +168,25 @@ class _PharmacistHome extends StatelessWidget {
           ),
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(18, 20, 18, 36),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _DateCard(now: now),
-                  const SizedBox(height: 20),
                   if (facilityIds.isEmpty)
                     _EmptyConnectionCard()
                   else ...[
-                    // 薬切れアラート（7日以内）
+                    // 薬切れアラート（7日以内）。急ぐものが最初に目に入るようにする。
                     _MedExpiryAlertCard(facilityIds: facilityIds),
-                    const SizedBox(height: 20),
-                    _SectionHeader(title: '担当施設', icon: Icons.business_outlined, color: themeColor),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 30),
+                    const _SectionLabel('担当施設'),
                     ...facilityIds.map((fid) => _FacilityCard(facilityId: fid, user: user, themeColor: themeColor)),
-                    const SizedBox(height: 20),
-                    _SectionHeader(title: '直近の予定', icon: Icons.event_outlined, color: themeColor),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 30),
+                    const _SectionLabel('直近の予定'),
                     _UpcomingEventsCard(facilityIds: facilityIds, themeColor: themeColor),
-                    const SizedBox(height: 20),
-                    _SectionHeader(title: '最新メッセージ', icon: Icons.chat_bubble_outline, color: themeColor),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 30),
+                    const _SectionLabel('最新メッセージ'),
                     _RecentChatsCard(user: user, themeColor: themeColor),
                   ],
-                  const SizedBox(height: 30),
                 ],
               ),
             ),
@@ -307,30 +314,6 @@ class _SectionLabel extends StatelessWidget {
   }
 }
 
-class _DateCard extends StatelessWidget {
-  final DateTime now;
-  const _DateCard({required this.now});
-
-  @override
-  Widget build(BuildContext context) {
-    const weekdays = ['月', '火', '水', '木', '金', '土', '日'];
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
-      child: Row(
-        children: [
-          const Icon(Icons.today, color: Color(0xFF1976D2), size: 20),
-          const SizedBox(width: 8),
-          Text(
-            '${now.year}年${now.month}月${now.day}日（${weekdays[now.weekday - 1]}）',
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _EmptyConnectionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -349,24 +332,6 @@ class _EmptyConnectionCard extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _SectionHeader extends StatelessWidget {
-  final String title;
-  final IconData icon;
-  final Color color;
-  const _SectionHeader({required this.title, required this.icon, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, size: 18, color: color),
-        const SizedBox(width: 6),
-        Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-      ],
     );
   }
 }

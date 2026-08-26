@@ -27,6 +27,7 @@ const C = {
   warn: 'C99A22',
   danger: 'B23A2F',
   card: '1B635C', // 暗色スライド上のカード
+  accentLabel: '1F6F78', // 明るい面に置く小見出し用(deepより一段明るい)
 };
 
 const F = { jp: 'Yu Gothic' };
@@ -267,7 +268,10 @@ function arrow(s, x, y, w) {
 // ══════════════════════════════════ 根拠(原典照合)
 {
   const s = light();
-  heading(s, '判定の根拠は、原本まで遡って確かめている');
+  // 「原本を確かめた」は、やって当たり前のこと。資料で言うべきなのは、
+  // そのあとに何をしたか — 医師向けの基準を、介護職が答えられる質問に直した点。
+  heading(s, '医師向けの基準を、介護職が答えられる言葉に',
+    '危険信号118項目は、すべて公開資料か医学書に紐づいています');
 
   const srcs = [
     ['厚生労働省の公開資料', '症候別トリアージの\n枠組みと症候の分類'],
@@ -303,11 +307,17 @@ function arrow(s, x, y, w) {
     });
   });
 
-  card(s, 0.8, 5.8, 11.7, 1.0, C.wash);
-  s.addText('過剰な警告も直しました。ありふれた良性のめまいで「受診」が出ていた分を、相談レベルに戻しています。', {
-    x: 1.2, y: 6.03, w: 11.0, h: 0.5, fontFace: F.jp, fontSize: T.body, color: C.ink, margin: 0,
+  // 開発の経緯(過剰警告を是正した等)は、初めて見る人には前提が無く伝わらない。
+  // 代わりに、翻訳という一番の手間を具体例で見せる。
+  card(s, 0.8, 5.75, 11.7, 1.15, C.wash);
+  s.addText('例：「Centorの基準で3点以上」→「口を大きく開けられない」', {
+    x: 1.2, y: 5.92, w: 11.0, h: 0.4,
+    fontFace: F.jp, fontSize: T.cardTitle - 2, bold: true, color: C.deep, margin: 0,
   });
-  s.addNotes('原本照合で危険信号を102→118に増やし、同時にめまいの過剰判定を是正した。増やすだけでなく減らしてもいる点が要旨。');
+  s.addText('白苔を見る、リンパ節を触る。診察が要る指標は使えないので、見ればわかる質問に置き換えています。', {
+    x: 1.2, y: 6.36, w: 11.0, h: 0.4, fontFace: F.jp, fontSize: T.small + 1, color: C.inkSub, margin: 0,
+  });
+  s.addNotes('資料の要点は「出典がある」ことではなく「専門職でなくても答えられる形に直した」こと。ここが一番手間のかかった部分。');
 }
 
 // ══════════════════════════════════ AIの使い方
@@ -382,7 +392,7 @@ function arrow(s, x, y, w) {
   s.addText(
     '条文を先に読み、そこから必要な機能を起こしました。次の2枚で、要求事項と実装の対応を示します。',
     { x: 1.2, y: 5.3, w: 10.6, h: 0.45, fontFace: F.jp, fontSize: T.body, color: C.soft, margin: 0 });
-  s.addText('できていないことも、そのまま開示します（最後の1枚）。', {
+  s.addText('できていないことも、この章の最後にそのまま並べています。', {
     x: 1.2, y: 5.95, w: 10.6, h: 0.45, fontFace: F.jp, fontSize: T.body, color: C.amber, margin: 0,
   });
 }
@@ -469,6 +479,77 @@ requirementTable(
   ],
   '※ このガイドラインは医療機関ではなく、システムを提供する事業者そのものが名宛人です。',
 );
+
+// ══════════════════════════════════ 電子保存の3原則をかみ砕く
+//
+// 「真正性・見読性・保存性」は法令用語で、字面からは中身が想像できない。
+// 前ページの表だけでは「で、何をしたの?」が残るので、
+// 何のための決まりか → どんな場面で効くか → このアプリで何をしたか、の順に開く。
+{
+  const s = light();
+  heading(s, '紙のカルテと同じ信頼を、データで担保する',
+    '前ページの「真正性・見読性・保存性」は、かみ砕くとこの3つです');
+
+  const principles = [
+    [
+      '真正性', 'あとから書き換えられていないこと',
+      'アレルギーが「あり」から「なし」に\n変わっていたとして、それが正規の\n訂正なのか分からなければ、\nその記録は使えません。',
+      '誰が・いつ・何を・どう変えたかを\n変更前の値ごと残します。\n記録そのものの書き換えと削除は、\n仕組みとして禁止しています。',
+    ],
+    [
+      '見読性', '必要なときに読み出せること',
+      '行政の調査や監査では、記録の\n提出を求められます。画面で\n見えるだけでは足りず、紙に\n出せる必要があります。',
+      '入居者ごとの記録を、そのまま\n印刷できるようにしました。\n印刷したこと自体も、\n持ち出しとして記録に残します。',
+    ],
+    [
+      '保存性', '保存期間中は失われないこと',
+      '誤操作や障害でデータが壊れても、\n決められた期間は元に戻せなければ\nなりません。',
+      '過去7日間の任意の時点まで\n巻き戻せます。データベース\n自体の誤削除も、設定で\nできないようにしています。',
+    ],
+  ];
+
+  principles.forEach(([name, lead, why, how], i) => {
+    const x = 0.8 + i * 4.05;
+
+    // 見出し帯
+    card(s, x, 2.0, 3.75, 0.92, C.deep);
+    s.addText(name, {
+      x: x + 0.25, y: 2.1, w: 3.2, h: 0.36,
+      fontFace: F.jp, fontSize: T.cardTitle, bold: true, color: C.amber, margin: 0,
+    });
+    s.addText(lead, {
+      x: x + 0.25, y: 2.5, w: 3.3, h: 0.34,
+      fontFace: F.jp, fontSize: T.small, color: 'FFFFFF', margin: 0,
+    });
+
+    // なぜ要るのか
+    card(s, x, 3.0, 3.75, 1.85, C.wash);
+    s.addText('なぜ要るのか', {
+      x: x + 0.25, y: 3.14, w: 3.2, h: 0.3,
+      fontFace: F.jp, fontSize: T.small - 1, bold: true, color: C.inkSub, margin: 0,
+    });
+    s.addText(why, {
+      x: x + 0.25, y: 3.46, w: 3.3, h: 1.3,
+      fontFace: F.jp, fontSize: T.small, color: C.ink, margin: 0, lineSpacingMultiple: 1.25,
+    });
+
+    // このアプリでは
+    card(s, x, 4.95, 3.75, 1.85, 'FFFFFF', C.soft);
+    s.addText('このアプリでは', {
+      x: x + 0.25, y: 5.09, w: 3.2, h: 0.3,
+      fontFace: F.jp, fontSize: T.small - 1, bold: true, color: C.accentLabel, margin: 0,
+    });
+    s.addText(how, {
+      x: x + 0.25, y: 5.41, w: 3.3, h: 1.3,
+      fontFace: F.jp, fontSize: T.small, color: C.ink, margin: 0, lineSpacingMultiple: 1.25,
+    });
+  });
+
+  s.addText('この3つは、紙のカルテで当たり前に成り立っていたことを、電子でも同じ水準にするための決まりです。', {
+    x: 0.8, y: 6.95, w: 11.7, h: 0.4,
+    fontFace: F.jp, fontSize: T.small, color: C.inkSub, italic: true, margin: 0,
+  });
+}
 
 // ══════════════════════════════════ 未対応（正直に出す）
 {

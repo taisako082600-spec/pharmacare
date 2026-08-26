@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:async';
 import '../models/user_model.dart';
 import '../models/patient_model.dart';
+import '../theme/app_theme.dart';
 import 'patient_detail_screen.dart';
 import 'patient_add_screen.dart';
 import 'qr_scanner_screen.dart';
@@ -51,9 +52,9 @@ class _PatientListScreenState extends State<PatientListScreen> {
       builder: (context, sideEffectSnap) {
         final sideEffectPatientIds = sideEffectSnap.data ?? {};
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
+      backgroundColor: AppTheme.canvas,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF388E3C),
+        backgroundColor: AppTheme.ink,
         foregroundColor: Colors.white,
         title: const Text('入居者一覧'),
         actions: [
@@ -101,8 +102,8 @@ class _PatientListScreenState extends State<PatientListScreen> {
       body: Column(
         children: [
           Container(
-            color: Colors.white,
-            padding: const EdgeInsets.all(12),
+            color: AppTheme.canvas,
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
             child: TextField(
               onChanged: (v) {
                 _searchDebounce?.cancel();
@@ -112,11 +113,9 @@ class _PatientListScreenState extends State<PatientListScreen> {
               },
               decoration: InputDecoration(
                 hintText: '名前・部屋番号で検索',
-                prefixIcon: const Icon(Icons.search, color: Colors.grey),
-                filled: true,
-                fillColor: const Color(0xFFF5F5F5),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                prefixIcon: const Icon(Icons.search, color: AppTheme.textSub, size: 20),
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(vertical: 13, horizontal: 12),
               ),
             ),
           ),
@@ -216,20 +215,27 @@ class _PatientListScreenState extends State<PatientListScreen> {
                           ),
                           child: Container(
                             margin: const EdgeInsets.only(bottom: 10),
-                            padding: const EdgeInsets.all(16),
+                            padding: const EdgeInsets.fromLTRB(16, 14, 10, 14),
                             decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: AppTheme.surface,
                               borderRadius: BorderRadius.circular(14),
-                              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 6, offset: const Offset(0, 2))],
+                              border: Border.all(color: AppTheme.line),
                             ),
+                            // 以前は右側に「服薬数・薬切れ・副作用・アレルギー」を縦積みし、
+                            // さらにQRボタンと矢印が並んでいて、どれが警告なのか判別できなかった。
+                            // 警告は下段に1行でまとめ、色を持つのは警告だけにする。
                             child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 CircleAvatar(
-                                  backgroundColor: const Color(0xFFE8F5E9),
-                                  radius: 26,
+                                  backgroundColor: AppTheme.canvas,
+                                  radius: 24,
                                   child: isPharmacist
-                                      ? const Icon(Icons.person_outline, color: Color(0xFF388E3C))
-                                      : Text(patient.name.isNotEmpty ? patient.name[0] : '?', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF388E3C))),
+                                      ? const Icon(Icons.person_outline, color: AppTheme.textSub, size: 22)
+                                      : Text(
+                                          patient.name.isNotEmpty ? patient.name[0] : '?',
+                                          style: const TextStyle(
+                                            fontSize: 19, fontWeight: FontWeight.w700, color: AppTheme.ink)),
                                 ),
                                 const SizedBox(width: 14),
                                 Expanded(
@@ -237,73 +243,63 @@ class _PatientListScreenState extends State<PatientListScreen> {
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Row(
+                                        crossAxisAlignment: CrossAxisAlignment.baseline,
+                                        textBaseline: TextBaseline.alphabetic,
                                         children: [
-                                          if (isPharmacist) ...[
-                                            if (patient.roomNumber.isNotEmpty)
-                                              Text(patient.roomNumber, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                                          Flexible(
+                                            child: Text(
+                                              isPharmacist
+                                                  ? (patient.roomNumber.isNotEmpty ? patient.roomNumber : '部屋未設定')
+                                                  : patient.name,
+                                              style: const TextStyle(
+                                                fontSize: 16.5, fontWeight: FontWeight.w700,
+                                                color: AppTheme.textMain, letterSpacing: -0.2),
+                                              maxLines: 1, overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                          if (patient.age > 0) ...[
                                             const SizedBox(width: 8),
-                                            if (patient.age > 0) Text('${patient.age}歳', style: const TextStyle(fontSize: 13, color: Colors.black54)),
-                                          ] else ...[
-                                            Text(patient.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                                            const SizedBox(width: 8),
-                                            if (patient.age > 0) Text('${patient.age}歳', style: const TextStyle(fontSize: 13, color: Colors.black54)),
+                                            Text('${patient.age}歳',
+                                                style: const TextStyle(fontSize: 13, color: AppTheme.textSub)),
                                           ],
+                                          const SizedBox(width: 10),
+                                          // 服薬数は情報であって警告ではないので、色を持たせない
+                                          Text('薬 $medCount種',
+                                              style: const TextStyle(fontSize: 12.5, color: AppTheme.textSub)),
                                         ],
                                       ),
-                                      const SizedBox(height: 4),
-                                      if (!isPharmacist && patient.roomNumber.isNotEmpty)
-                                        Text(patient.roomNumber, style: const TextStyle(fontSize: 13, color: Colors.black54)),
-                                      const SizedBox(height: 6),
-                                      Wrap(
-                                        spacing: 4,
-                                        children: conditions.map((c) => Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                          decoration: BoxDecoration(color: const Color(0xFFE3F2FD), borderRadius: BorderRadius.circular(6)),
-                                          child: Text(c, style: const TextStyle(fontSize: 10, color: Color(0xFF1976D2))),
-                                        )).toList(),
-                                      ),
+                                      if (!isPharmacist && patient.roomNumber.isNotEmpty) ...[
+                                        const SizedBox(height: 3),
+                                        Text(patient.roomNumber,
+                                            style: const TextStyle(fontSize: 12.5, color: AppTheme.textSub)),
+                                      ],
+                                      if (conditions.isNotEmpty) ...[
+                                        const SizedBox(height: 7),
+                                        Text(conditions.join('・'),
+                                            style: const TextStyle(fontSize: 12, color: AppTheme.textSub),
+                                            maxLines: 1, overflow: TextOverflow.ellipsis),
+                                      ],
+                                      if (hasExpiringSoon ||
+                                          sideEffectPatientIds.contains(doc.id) ||
+                                          patient.allergies.isNotEmpty) ...[
+                                        const SizedBox(height: 9),
+                                        Wrap(
+                                          spacing: 6, runSpacing: 6,
+                                          children: [
+                                            if (hasExpiringSoon) _AlertTag('薬切れ間近', AppTheme.danger),
+                                            if (sideEffectPatientIds.contains(doc.id))
+                                              _AlertTag('副作用報告', AppTheme.warn),
+                                            if (patient.allergies.isNotEmpty)
+                                              _AlertTag('アレルギー', AppTheme.danger),
+                                          ],
+                                        ),
+                                      ],
                                     ],
                                   ),
                                 ),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                      decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(8)),
-                                      child: Text('$medCount種', style: const TextStyle(fontSize: 12, color: Colors.orange, fontWeight: FontWeight.bold)),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    const Text('服薬中', style: TextStyle(fontSize: 10, color: Colors.black38)),
-                                    if (hasExpiringSoon) ...[
-                                      const SizedBox(height: 4),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                        decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(6)),
-                                        child: const Text('薬切れ間近', style: TextStyle(fontSize: 9, color: Colors.red, fontWeight: FontWeight.bold)),
-                                      ),
-                                    ],
-                                    if (sideEffectPatientIds.contains(doc.id)) ...[
-                                      const SizedBox(height: 4),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                        decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(6)),
-                                        child: const Text('副作用報告', style: TextStyle(fontSize: 9, color: Colors.orange, fontWeight: FontWeight.bold)),
-                                      ),
-                                    ],
-                                    if (patient.allergies.isNotEmpty) ...[
-                                      const SizedBox(height: 4),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                        decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(6)),
-                                        child: const Text('アレルギー', style: TextStyle(fontSize: 9, color: Color(0xFFB71C1C), fontWeight: FontWeight.bold)),
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                                const SizedBox(width: 4),
+                                // カード全体が開くので矢印は外し、別の操作であるQRだけ残す
                                 IconButton(
-                                  icon: const Icon(Icons.qr_code_2, color: Color(0xFF1976D2)),
+                                  icon: const Icon(Icons.qr_code_2, color: AppTheme.textSub),
                                   tooltip: 'QRコード読み取り',
                                   onPressed: () => Navigator.push(
                                     context,
@@ -316,7 +312,6 @@ class _PatientListScreenState extends State<PatientListScreen> {
                                     ),
                                   ),
                                 ),
-                                const Icon(Icons.chevron_right, color: Colors.grey),
                               ],
                             ),
                           ),
@@ -339,6 +334,31 @@ class _PatientListScreenState extends State<PatientListScreen> {
       ),
     );
       },
+    );
+  }
+}
+
+/// 注意を促すためのタグ。
+///
+/// 一覧の中で色を持つのはこれだけにしている。服薬数や既往のように
+/// 「ただの情報」まで色を付けると、本当に見てほしい警告が埋もれるため。
+class _AlertTag extends StatelessWidget {
+  final String text;
+  final Color color;
+  const _AlertTag(this.text, this.color);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w700),
+      ),
     );
   }
 }
