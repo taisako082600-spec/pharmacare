@@ -128,30 +128,141 @@ function arrow(s, x, y, w) {
   });
 }
 
-// ══════════════════════════════════ 課題
+// ══════════════════════════════════ 課題① 道具は既にある
+// このスライドの主張は「無いものを作る」ではなく「バラバラなものを束ねる」。
+// 既存サービスを実際に調べたうえでの整理なので、固有名を出して逃げない。
 {
   const s = light();
-  heading(s, '施設と薬局のあいだが、電話とFAXで止まっている');
+  heading(s, '道具は、もうある。つないだものが無い',
+    '施設と薬局まわりの既存サービスを調べたうえでの整理');
 
-  const before = ['薬が変わっても伝わらない', '相談したいがつながらない', '夜間・休日は判断材料がない'];
-  const after = ['薬の情報がその場で共有される', '時間を選ばずチャットで相談', '症状から対応の目安が出る'];
+  const tools = [
+    ['電子お薬手帳',
+     'EPARK・日本調剤・さくら薬局ほか',
+     '薬の履歴を本人が持ち歩ける。\n血圧などを記録できるものもある。',
+     '患者本人のための道具。\n介護職員が入居者の分を\n扱う想定になっていない。'],
+    ['施設向け服薬管理システム',
+     '服やっくん・ピクスリー・楽くすりほか',
+     'QRで薬を取り込み、\n飲み忘れ・誤薬を防ぐ。\n薬局と施設をつなぐものも出てきた。',
+     '配薬を正確にすることが主眼。\n体調の記録や、症状が出たときの\n判断までは踏み込まない。'],
+    ['LINE などの汎用チャット',
+     '実際に多くの現場で使われている',
+     'とにかくすぐ聞ける。\n導入の手間がない。',
+     '医療情報を扱う前提の設計ではなく、\nやり取りが記録として残らない。'],
+  ];
 
-  card(s, 0.8, 2.15, 5.4, 3.8, 'F0EEEA');
-  s.addText('これまで', { x: 1.2, y: 2.45, w: 3, h: 0.45, fontFace: F.jp, fontSize: T.cardTitle, bold: true, color: '8A6F52', margin: 0 });
-  before.forEach((t, i) => {
-    s.addText(t, { x: 1.2, y: 3.25 + i * 0.82, w: 4.8, h: 0.55, fontFace: F.jp, fontSize: T.body, color: '5A5044', margin: 0 });
+  const cw = 3.733;
+  tools.forEach(([name, examples, can, cant], i) => {
+    const x = 0.8 + i * (cw + 0.25);
+    card(s, x, 1.95, cw, 3.55, C.wash);
+    // 16pt。19pt だと「施設向け服薬管理システム」が2行に折れて下の行に重なる。
+    s.addText(name, {
+      x: x + 0.3, y: 2.15, w: cw - 0.45, h: 0.5,
+      fontFace: F.jp, fontSize: 16, bold: true, color: C.deep, margin: 0,
+    });
+    s.addText(examples, {
+      x: x + 0.3, y: 2.62, w: cw - 0.5, h: 0.35,
+      fontFace: F.jp, fontSize: 11, color: C.inkSub, margin: 0,
+    });
+    s.addText(can, {
+      x: x + 0.3, y: 3.05, w: cw - 0.5, h: 1.0,
+      fontFace: F.jp, fontSize: 13, color: C.ink, margin: 0, lineSpacingMultiple: 1.2,
+    });
+    // 区切り線。「できること」と「届かないところ」を視覚的に分ける。
+    s.addShape(pres.ShapeType.rect, {
+      x: x + 0.3, y: 4.12, w: cw - 0.6, h: 0.015,
+      fill: { color: C.soft }, line: { color: C.soft },
+    });
+    s.addText(cant, {
+      x: x + 0.3, y: 4.25, w: cw - 0.5, h: 1.1,
+      fontFace: F.jp, fontSize: 13, color: '8A6F52', margin: 0, lineSpacingMultiple: 1.2,
+    });
   });
 
-  card(s, 7.15, 2.15, 5.35, 3.8, C.wash);
-  s.addText('ファーマケア', { x: 7.55, y: 2.45, w: 4, h: 0.45, fontFace: F.jp, fontSize: T.cardTitle, bold: true, color: C.deep, margin: 0 });
-  after.forEach((t, i) => {
-    s.addText(t, { x: 7.55, y: 3.25 + i * 0.82, w: 4.7, h: 0.55, fontFace: F.jp, fontSize: T.body, color: C.ink, margin: 0 });
+  // 結論の帯。ここが次スライドへの橋渡しになる。
+  card(s, 0.8, 5.75, 11.7, 1.0, C.deep);
+  s.addText('薬・体調・相談・受診の判断が、それぞれ別の場所にある。それを頭の中でつないでいるのが現場の職員',
+    { x: 1.15, y: 5.75, w: 11.0, h: 1.0, fontFace: F.jp, fontSize: 16, bold: true, color: 'FFFFFF', valign: 'middle', margin: 0 });
+
+  s.addText('出典: 厚生労働省「電子版お薬手帳サービス一覧」(2026年8月1日現在)、各サービス公式サイト',
+    { x: 0.8, y: 6.88, w: 11.7, h: 0.35, fontFace: F.jp, fontSize: 10, color: C.inkSub, margin: 0 });
+}
+
+// ══════════════════════════════════ 課題② つないだ先に何が生まれるか
+{
+  const s = light();
+  heading(s, 'つなぐと、その人に合わせられる',
+    '同じ画面に薬と体調があるから、一般論ではなく目の前の人の話にできる');
+
+  const steps = [
+    ['1', '施設が記録する',
+     '服薬の実施、血圧・体温・SpO₂。\nいつも職員がつけている記録を、\nそのまま入れる。'],
+    ['2', '薬剤師に相談する',
+     '電話と違い、何の薬の話かを\n説明し直さなくていい。\nやり取りは記録として残る。'],
+    ['3', 'その人に合わせて返す',
+     '腎機能・肝機能・年齢を見て\n注意点を出し分ける。\n症状からは、受診かOTCかの\n目安を出す。'],
+  ];
+
+  const cw = 3.733;
+  steps.forEach(([n, title, body], i) => {
+    const x = 0.8 + i * (cw + 0.25);
+    card(s, x, 2.1, cw, 2.9, C.wash);
+    badge(s, n, x + 0.3, 2.35, 0.5, C.deep, 15);
+    s.addText(title, {
+      x: x + 0.95, y: 2.38, w: cw - 1.2, h: 0.45,
+      fontFace: F.jp, fontSize: 17, bold: true, color: C.deep, margin: 0,
+    });
+    s.addText(body, {
+      x: x + 0.3, y: 2.98, w: cw - 0.5, h: 1.7,
+      fontFace: F.jp, fontSize: 13.5, color: C.ink, margin: 0, lineSpacingMultiple: 1.25,
+    });
+    if (i < 2) arrow(s, x + cw + 0.02, 3.45, 0.2);
   });
 
-  s.addShape(pres.ShapeType.rightArrow, { x: 6.35, y: 3.85, w: 0.5, h: 0.44, fill: { color: C.amber }, line: { color: C.amber } });
-  s.addText('Webブラウザだけで利用でき、アプリのインストールは不要', {
-    x: 0.8, y: 6.25, w: 11.7, h: 0.45, fontFace: F.jp, fontSize: T.small, color: C.inkSub, italic: true, margin: 0,
+  s.addText('ここが既存サービスとの違い', {
+    x: 0.8, y: 5.3, w: 11.7, h: 0.4, fontFace: F.jp, fontSize: 13, bold: true, color: C.accentLabel, margin: 0,
   });
+  const diffs = [
+    'バイタルが薬の話とつながっている — 「血圧が下がってきたので降圧薬を見直しては」という会話が、数字を見ながらできる',
+    '症状が出たときの入口がある — 受診すべきか、市販薬で様子を見てよいかの目安を、危険な兆候の有無から出す',
+  ];
+  diffs.forEach((t, i) => {
+    s.addShape(pres.ShapeType.rect, { x: 0.8, y: 5.82 + i * 0.6, w: 0.04, h: 0.42, fill: { color: C.amber }, line: { color: C.amber } });
+    s.addText(t, { x: 1.05, y: 5.78 + i * 0.6, w: 11.4, h: 0.5, fontFace: F.jp, fontSize: 14, color: C.ink, margin: 0 });
+  });
+}
+
+// ══════════════════════════════════ 課題③ なぜ今か
+{
+  const s = light();
+  heading(s, 'なぜ、今つくるのか',
+    '制度の流れが、施設と薬局を近づけている');
+
+  const reasons = [
+    ['在宅・施設への訪問が国の方向',
+     '薬剤師の役割は「薬を渡す」から「渡したあとを見る」へ移っている。\n施設に足を運ぶ機会は今後さらに増える。'],
+    ['門前から面へ',
+     '特定の病院の前に構える薬局から、地域のどの処方箋も受ける薬局へ。\n処方元に電話すれば済んでいたことが、済まなくなる。\n患者の薬を薬局側で一元的に把握する必要が出てくる。'],
+    ['服薬期間中のフォローアップは、すでに義務',
+     '2020年9月施行の改正薬機法・薬剤師法で、渡したあとの服薬状況を\n継続的に把握することが薬剤師の責務になった。\nただし現場の手段は電話が中心で、続けるのが難しい。'],
+  ];
+
+  reasons.forEach(([title, body], i) => {
+    const y = 1.95 + i * 1.42;
+    badge(s, String(i + 1), 0.8, y + 0.1, 0.52, C.mid, 15);
+    s.addText(title, {
+      x: 1.55, y: y + 0.05, w: 10.9, h: 0.45,
+      fontFace: F.jp, fontSize: 18, bold: true, color: C.deep, margin: 0,
+    });
+    s.addText(body, {
+      x: 1.55, y: y + 0.5, w: 10.9, h: 0.9,
+      fontFace: F.jp, fontSize: 13.5, color: C.ink, margin: 0, lineSpacingMultiple: 1.2,
+    });
+  });
+
+  card(s, 0.8, 6.3, 11.7, 0.85, C.wash);
+  s.addText('義務だから電話をかけるのではなく、続けられる形にする。それが結果として、選ばれる薬局につながる',
+    { x: 1.15, y: 6.3, w: 11.0, h: 0.85, fontFace: F.jp, fontSize: 15, bold: true, color: C.deep, valign: 'middle', margin: 0 });
 }
 
 // ══════════════════════════════════ 登録の流れ
