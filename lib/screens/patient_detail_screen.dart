@@ -8,6 +8,7 @@ import '../services/ai_drug_service.dart';
 import '../services/audit_service.dart';
 import '../services/connectivity_guard.dart';
 import '../services/medical_record_print_service.dart';
+import '../theme/app_theme.dart';
 import 'chat_screen.dart';
 import 'qr_scanner_screen.dart';
 import 'otc_triage_form_screen.dart';
@@ -662,7 +663,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
           return const Scaffold(
-            backgroundColor: Color(0xFFF5F7FA),
+            backgroundColor: AppTheme.canvas,
             body: Center(child: CircularProgressIndicator()),
           );
         }
@@ -670,7 +671,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
         // (hasDataはtrueのため、.data()のnon-nullキャストがそのまま例外落ちしていた)。
         if (!snapshot.data!.exists) {
           return Scaffold(
-            backgroundColor: const Color(0xFFF5F7FA),
+            backgroundColor: AppTheme.canvas,
             appBar: AppBar(title: const Text('入居者情報')),
             body: const Center(child: Text('この入居者は削除されました', style: TextStyle(color: Colors.black54))),
           );
@@ -695,13 +696,13 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
         final isPharmacist = widget.user.isPharmacist;
 
         return Scaffold(
-          backgroundColor: const Color(0xFFF5F7FA),
+          backgroundColor: AppTheme.canvas,
           body: NestedScrollView(
         headerSliverBuilder: (context, _) => [
           SliverAppBar(
             expandedHeight: 190,
             pinned: true,
-            backgroundColor: const Color(0xFF388E3C),
+            backgroundColor: AppTheme.ink,
             foregroundColor: Colors.white,
             actions: [
               // 見読性(書面作成)。事業者ガイドライン第2.0版 6.2 が、保存した
@@ -714,14 +715,9 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
               ),
             ],
             flexibleSpace: FlexibleSpaceBar(
+              // グラデーションをやめ、ホーム・一覧と同じ濃紺の面に揃える。
               background: Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Color(0xFF2E7D32), Color(0xFF66BB6A)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                ),
+                color: AppTheme.ink,
                 child: SafeArea(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(20, 50, 20, 16),
@@ -732,7 +728,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                           backgroundColor: Colors.white,
                           child: _isPharmacist
                               ? const Icon(Icons.person_outline,
-                                  size: 36, color: Color(0xFF388E3C))
+                                  size: 36, color: AppTheme.ink)
                               : Text(
                                   patient.name.isNotEmpty
                                       ? patient.name[0]
@@ -740,7 +736,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                                   style: const TextStyle(
                                       fontSize: 26,
                                       fontWeight: FontWeight.bold,
-                                      color: Color(0xFF388E3C)),
+                                      color: AppTheme.ink),
                                 ),
                         ),
                         const SizedBox(width: 16),
@@ -1733,7 +1729,7 @@ class _VisitFooter extends StatelessWidget {
             return Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: const BoxDecoration(
-                color: Color(0xFFF5F7FA),
+                color: AppTheme.canvas,
                 borderRadius: BorderRadius.vertical(bottom: Radius.circular(16)),
               ),
               child: Row(
@@ -3724,7 +3720,7 @@ class _VitalsTabState extends State<_VitalsTab> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
+      backgroundColor: AppTheme.canvas,
       floatingActionButton: FloatingActionButton(
         onPressed: _showAddVitalsDialog,
         backgroundColor: Colors.teal,
