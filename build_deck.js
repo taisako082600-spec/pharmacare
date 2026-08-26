@@ -230,7 +230,10 @@ function arrow(s, x, y, w) {
 // ══════════════════════════════════ トリアージ
 {
   const s = light();
-  heading(s, '症状トリアージ', '体調不良のとき、その場で対応の目安がわかる');
+  // 「トリアージ」は医療の用語で、初めて聞く人には通じない。
+  // 副題ではなく見出しの側で、何をする機能なのかを言い切る。
+  heading(s, '体調不良のとき、様子を見てよいか迷わない',
+    '症状トリアージ ― 聞き取った内容から、対応の目安を3段階で示します');
 
   card(s, 0.8, 2.05, 5.5, 3.1, C.wash);
   s.addText('スタッフが入力する', {
@@ -243,10 +246,11 @@ function arrow(s, x, y, w) {
 
   s.addShape(pres.ShapeType.rightArrow, { x: 6.45, y: 3.35, w: 0.45, h: 0.42, fill: { color: C.amber }, line: { color: C.amber } });
 
+  // 「OTC」は業界語なので出さない。3段階が何を指すかだけが伝わればよい。
   const levels = [
-    ['OTC対応可', '市販薬で様子を見る', C.ok],
-    ['薬剤師に相談', 'ワンタップで相談へ', C.warn],
-    ['医療機関を受診', '速やかに受診手配', C.danger],
+    ['市販薬で様子を見る', '緊急性は低いと考えられる', C.ok],
+    ['薬剤師に相談', 'ワンタップで相談へつながる', C.warn],
+    ['医療機関を受診', '速やかに受診の手配を', C.danger],
   ];
   levels.forEach(([t, d, col], i) => {
     const y = 2.05 + i * 1.06;
@@ -603,8 +607,21 @@ requirementTable(
   s.addText('毎年集まっている特定健診データを、予防のための判断に変える', {
     x: 2.5, y: 4.3, w: 10.2, h: 0.5, fontFace: F.jp, fontSize: 18, color: C.soft, margin: 0,
   });
+  // ここまでは施設のアプリの話だった。なぜ急に健診の研究が出てくるのか、
+  // 最後の1枚まで説明が無いと、別々の話が2つ並んでいるようにしか読めない。
+  // 扉で先に橋を架けておく。
+  card(s, 2.5, 5.15, 10.2, 1.25, C.card);
+  s.addText('第1部と同じ考え方です。', {
+    x: 2.85, y: 5.32, w: 9.6, h: 0.4,
+    fontFace: F.jp, fontSize: T.body, bold: true, color: C.amber, margin: 0,
+  });
+  s.addText('すでに手元にあるデータを、その場の判断につなげる。第1部は施設の服薬記録で、第2部は健診の数値です。', {
+    x: 2.85, y: 5.75, w: 9.6, h: 0.45,
+    fontFace: F.jp, fontSize: T.small + 1, color: 'FFFFFF', margin: 0,
+  });
+
   s.addText('事例：1年間のBRI変化と尿蛋白の新規発現（宮崎県延岡市 2020–2021年）', {
-    x: 2.5, y: 5.35, w: 10.2, h: 0.45, fontFace: F.jp, fontSize: T.body, color: 'FFFFFF', margin: 0,
+    x: 2.5, y: 6.6, w: 10.2, h: 0.45, fontFace: F.jp, fontSize: T.small + 1, color: C.soft, margin: 0,
   });
 }
 
@@ -668,21 +685,25 @@ requirementTable(
     });
   });
 
+  // 「減った群」も基準の1を超えて見えるが、信頼区間が1をまたいでおり
+  // (1.16、95%CI 0.85–1.58)、差があるとは言えない。同じ太さの棒で並べると
+  // 「減っても危ない」と読めてしまうので、色を分け、注釈で明示する。
   s.addChart(pres.ChartType.bar, [{
-    name: 'オッズ比',
+    name: 'リスクの比',
     labels: ['減った', '横ばい（基準）', '増えた'],
     values: [1.16, 1.00, 1.38],
   }], {
-    x: 0.8, y: 4.25, w: 6.6, h: 2.5,
+    x: 0.8, y: 4.2, w: 6.6, h: 2.2,
     barDir: 'bar',
-    chartColors: [C.mid],
+    chartColors: [C.soft, C.soft, C.mid],
+    varyColors: true,
     showValue: true, dataLabelPosition: 'outEnd',
     dataLabelColor: C.ink, dataLabelFontSize: 14, dataLabelFontFace: 'Calibri',
     // 書式を指定しないと 1.38 が「1」に丸められて表示される
     dataLabelFormatCode: '0.00',
     showLegend: false,
-    showTitle: true, title: '尿蛋白が新たに出るリスク（オッズ比）',
-    titleColor: C.deep, titleFontSize: 15, titleFontFace: F.jp,
+    showTitle: true, title: '横ばいの群を1としたときの、尿蛋白の出やすさ',
+    titleColor: C.deep, titleFontSize: 14, titleFontFace: F.jp,
     catAxisLabelColor: C.ink, catAxisLabelFontSize: 14, catAxisLabelFontFace: F.jp,
     valAxisLabelColor: C.inkSub, valAxisLabelFontSize: 11,
     valAxisMinVal: 0, valAxisMaxVal: 1.8,
@@ -691,17 +712,26 @@ requirementTable(
     barGapWidthPct: 55,
   });
 
-  card(s, 7.7, 4.25, 4.8, 2.5, C.wash);
+  s.addText('「増えた」だけが統計的に確かめられた差です。「減った」は 1.16 と出ていますが、'
+    + 'ばらつきの範囲（0.85〜1.58）が1をまたぐため、差があるとは言えません。', {
+    x: 0.8, y: 6.45, w: 6.7, h: 0.55,
+    fontFace: F.jp, fontSize: T.small - 1, color: C.inkSub, margin: 0, lineSpacingMultiple: 1.2,
+  });
+
+  card(s, 7.7, 4.2, 4.8, 2.8, C.wash);
   s.addText('尿蛋白に注目する理由', {
-    x: 8.0, y: 4.48, w: 4.3, h: 0.4, fontFace: F.jp, fontSize: T.cardTitle - 3, bold: true, color: C.deep, margin: 0,
+    x: 8.0, y: 4.4, w: 4.3, h: 0.4, fontFace: F.jp, fontSize: T.cardTitle - 3, bold: true, color: C.deep, margin: 0,
   });
   s.addText('腎機能の低下より先に出ることが\n多く、早い段階で気づけます。', {
-    x: 8.0, y: 4.95, w: 4.3, h: 0.8,
+    x: 8.0, y: 4.85, w: 4.3, h: 0.8,
     fontFace: F.jp, fontSize: T.small + 1, color: C.ink, margin: 0, lineSpacingMultiple: 1.25,
   });
-  s.addText('BRIが増えた群のリスク上昇は、\nBMIの変化を調整しても残りました。', {
-    x: 8.0, y: 5.85, w: 4.3, h: 0.75,
-    fontFace: F.jp, fontSize: T.small, color: C.inkSub, margin: 0, lineSpacingMultiple: 1.2,
+  s.addText('1.38倍とは', {
+    x: 8.0, y: 5.68, w: 4.3, h: 0.35, fontFace: F.jp, fontSize: T.small - 1, bold: true, color: C.accentLabel, margin: 0,
+  });
+  s.addText('横ばいだった人に比べ、尿蛋白が\n新たに出た人の割合が約1.4倍。\n体重やBMIの変化を考慮しても\n残った差です。', {
+    x: 8.0, y: 6.0, w: 4.4, h: 0.95,
+    fontFace: F.jp, fontSize: T.small, color: C.ink, margin: 0, lineSpacingMultiple: 1.2,
   });
 }
 
@@ -750,8 +780,15 @@ requirementTable(
 
   card(s, 7.0, 2.15, 5.5, 3.5, 'F7F2EC');
   s.addText('言えないこと', { x: 7.35, y: 2.4, w: 4, h: 0.45, fontFace: F.jp, fontSize: T.cardTitle, bold: true, color: '8A6F52', margin: 0 });
-  ['BRIを下げれば腎臓が守れる、\nという因果関係', '1年の観察なので、一時的な\n変動の影響もありうる', '延岡市の受診者が対象。\nそのまま他地域には広げられない'].forEach((t, i) => {
-    s.addText(t, { x: 7.35, y: 3.05 + i * 0.9, w: 5.0, h: 0.8, fontFace: F.jp, fontSize: T.small + 1, color: '5A5044', margin: 0, lineSpacingMultiple: 1.2 });
+  // 「減った群も危ない」と読まれかねないので、ここで明示的に否定しておく。
+  // また、痩せの背景(病気・低栄養)を区別できていない点も、この研究の限界として重要。
+  [
+    'BRIを下げれば腎臓が守れる、\nという因果関係',
+    '「減った人も危ない」とは\n言えない（差が確かめられていない）',
+    '痩せた理由が生活改善なのか、\n病気や低栄養なのかは区別できない',
+    '1年・延岡市の受診者が対象。\nそのまま他地域には広げられない',
+  ].forEach((t, i) => {
+    s.addText(t, { x: 7.35, y: 2.95 + i * 0.72, w: 5.0, h: 0.68, fontFace: F.jp, fontSize: T.small, color: '5A5044', margin: 0, lineSpacingMultiple: 1.15 });
   });
 
   s.addText('次に必要なのは、複数地域・長期の追跡と、介入して確かめる研究です。', {
