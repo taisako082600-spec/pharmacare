@@ -8,7 +8,9 @@ const fs = require('fs');
 const path = require('path');
 
 const DART = path.join(__dirname, 'lib', 'screens', 'otc_triage_form_screen.dart');
-const HTML = path.join(__dirname, 'OTC_TRIAGE_OVERVIEW_VISUAL.html');
+// トリアージ資料は書籍由来の判定根拠を含むため非公開(.gitignore済み)。
+// 個人・内部文書を _内部/ にまとめた際にここへ移動した(2026-08-27)。
+const HTML = path.join(__dirname, '_内部', 'OTC_TRIAGE_OVERVIEW_VISUAL.html');
 
 const src = fs.readFileSync(DART, 'utf8');
 
