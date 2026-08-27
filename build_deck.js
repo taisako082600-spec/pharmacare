@@ -454,9 +454,6 @@ function arrow(s, x, y, w) {
       });
     });
   });
-  s.addText('AIが使えない状況でも、判定そのものはアプリだけで返ります。', {
-    x: 0.9, y: 6.55, w: 11.5, h: 0.45, fontFace: F.jp, fontSize: T.body, color: 'FFFFFF', italic: true, margin: 0,
-  });
 }
 
 // ══════════════════════════════════ ガイドライン
@@ -486,15 +483,14 @@ function arrow(s, x, y, w) {
     });
   });
 
-  card(s, 0.8, 4.55, 11.7, 2.2, C.deep);
+  // 資料の構成を説明する行(「次の何枚で〜」)は入れない。読み手が知りたいのは
+  // 資料の作りではなく中身。帯は主張と、隠していないことの2行だけに絞る。
+  card(s, 0.8, 4.55, 11.7, 1.6, C.deep);
   s.addText('どちらも「何を求めているか」から実装を決めています', {
-    x: 1.2, y: 4.8, w: 10.5, h: 0.45, fontFace: F.jp, fontSize: T.cardTitle, bold: true, color: 'FFFFFF', margin: 0,
+    x: 1.2, y: 4.82, w: 10.5, h: 0.45, fontFace: F.jp, fontSize: T.cardTitle, bold: true, color: 'FFFFFF', margin: 0,
   });
-  s.addText(
-    '条文を先に読み、そこから必要な機能を起こしました。ガイドラインごとに、対応表と、その中身をかみ砕いた解説を1枚ずつ置きます。',
-    { x: 1.2, y: 5.3, w: 10.6, h: 0.45, fontFace: F.jp, fontSize: T.body, color: C.soft, margin: 0 });
   s.addText('できていないことも、この章の最後にそのまま並べています。', {
-    x: 1.2, y: 5.95, w: 10.6, h: 0.45, fontFace: F.jp, fontSize: T.body, color: C.amber, margin: 0,
+    x: 1.2, y: 5.4, w: 10.6, h: 0.45, fontFace: F.jp, fontSize: T.body, color: C.amber, margin: 0,
   });
 }
 
