@@ -141,9 +141,11 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
       // 新規発行
       final rand = Random.secure();
       code = List.generate(6, (_) => rand.nextInt(10)).join();
-      await FirebaseFirestore.instance.collection('invite_codes').add({
+      // ドキュメントIDはコード文字列そのもの(firestore.rules が get() で照合するため)。
+      await FirebaseFirestore.instance.collection('invite_codes').doc(code).set({
         'code': code,
         'type': 'family',
+        'createdBy': widget.user.uid,
         'patientId': patient.id,
         'patientName': patient.roomNumber.isNotEmpty ? patient.roomNumber : '患者',
         'facilityId': widget.user.facilityId,

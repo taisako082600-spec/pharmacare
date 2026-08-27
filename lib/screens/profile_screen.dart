@@ -172,10 +172,12 @@ class _InviteCodeTile extends StatelessWidget {
 
   Future<void> _issueCode(BuildContext context) async {
     final code = _generateCode();
-    await FirebaseFirestore.instance.collection('invite_codes').add({
+    // ドキュメントIDはコード文字列そのもの(firestore.rules が get() で照合するため)。
+    await FirebaseFirestore.instance.collection('invite_codes').doc(code).set({
       'code': code,
       'facilityId': user.facilityId,
       'facilityName': user.facilityName,
+      'createdBy': user.uid,
       'used': false,
       'expiresAt': Timestamp.fromDate(DateTime.now().add(const Duration(hours: 24))),
       'createdAt': FieldValue.serverTimestamp(),

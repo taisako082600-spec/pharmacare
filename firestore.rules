@@ -39,19 +39,88 @@ service cloud.firestore {
     // その患者の情報が読める。mfaRequired は二要素認証の必須化を外せてしまう。
     //
     // いずれもアプリ上で本人が変更する導線は無いので、まとめて禁止する。
-    // facilityId / facilityIds は招待コードでの参加時に本人が書くため対象外。
     function changesPrivilegedUserFields() {
       return request.resource.data.diff(resource.data).affectedKeys()
         .hasAny(['isAdmin', 'role', 'linkedPatientId', 'mfaRequired']);
     }
 
+    // facilityId / facilityIds は「本人が招待コードで参加するときに書く」ため
+    // 上の禁止リストから外していたが、**それ自体が穴だった**(2026-08-27に判明)。
+    // 誰でも自分の facilityId を任意の施設IDに書き換えられ、書き換えた瞬間に
+    // belongsToFacility() が真になって、その施設の入居者情報が全部読めていた。
+    // 招待コードの検証がクライアント側にしか無いことが原因。
+    //
+    // そこで、施設への所属を変える書き込みは次のどちらかでしか通らないようにする。
+    //
+    //   1. その施設を自分で作った場合(新規施設の登録フロー)
+    //   2. 有効な招待コードを提示した場合
+    //
+    // 2の検証にはコードの実体を読む必要があるが、**ルール内の get() は
+    // read 権限を経由しない**ため、クライアントに読ませないまま照合できる。
+    // これを成立させるために invite_codes は「コード文字列そのものを
+    // ドキュメントID」にしてある(自動採番IDのままだと get() で引けない)。
+    function changesFacilityFields() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasAny(['facilityId', 'facilityIds']);
+    }
+
+    function ownsTargetFacility() {
+      let fid = request.resource.data.get('facilityId', '');
+      return fid != ''
+        && exists(/databases/$(database)/documents/facilities/$(fid))
+        && get(/databases/$(database)/documents/facilities/$(fid)).data.createdBy == request.auth.uid;
+    }
+
+    // 参加に使った招待コードを users ドキュメントの joinedWithCode に書かせ、
+    // それが実在し、かつ書き込もうとしている facilityId と一致することを確かめる。
+    // 期限切れも弾く。使用済み(used)は、同じバッチ内で使用済みに更新する都合上
+    // ここでは見ない(ルールは書き込み前の状態を見るため、正規の参加まで弾いてしまう)。
+    function hasValidInviteCode() {
+      let code = request.resource.data.get('joinedWithCode', '');
+      let fid = request.resource.data.get('facilityId', '');
+      return code != ''
+        && exists(/databases/$(database)/documents/invite_codes/$(code))
+        && get(/databases/$(database)/documents/invite_codes/$(code)).data.facilityId == fid
+        && get(/databases/$(database)/documents/invite_codes/$(code)).data.expiresAt > request.time;
+    }
+
+    function facilityJoinIsAuthorised() {
+      return ownsTargetFacility() || hasValidInviteCode();
+    }
+
+    // 家族アカウントが「どの入居者に紐づくか」の検証。
+    //
+    // isLinkedFamily() は users の role=='家族' と linkedPatientId だけで判定している。
+    // この2つは作成時に本人が自由に書けるので、**入居者IDを知っていれば、誰でも
+    // その入居者の家族として登録し、処方・バイタル・受診記録を読めた**
+    // (2026-08-27の独立レビューで発見。changesPrivilegedUserFields() は update 専用の
+    // 差分判定なので、新規作成には効いていなかった)。
+    //
+    // 入居者IDは自動採番の20文字なので総当たりはできないが、URLや画面の共有で
+    // 漏れうる値であり、「知られたら終わり」の設計にしてはいけない。
+    // 家族用の招待コードには patientId が入っているので、それと一致させる。
+    function linkedPatientIsAuthorised() {
+      let pid = request.resource.data.get('linkedPatientId', '');
+      let code = request.resource.data.get('joinedWithCode', '');
+      return pid == ''
+        || (code != ''
+            && exists(/databases/$(database)/documents/invite_codes/$(code))
+            && get(/databases/$(database)/documents/invite_codes/$(code)).data.get('patientId', '') == pid);
+    }
+
     match /users/{uid} {
       allow read: if isSignedIn();
-      // 作成時に自分を管理者にできないようにする
+      // 作成時に自分を管理者にできないようにする。
+      // 施設に所属した状態で作る場合は、その所属が正当であることまで確かめる。
       allow create: if request.auth.uid == uid
-                    && request.resource.data.isAdmin == false;
+                    && request.resource.data.isAdmin == false
+                    && (request.resource.data.get('facilityId', '') == ''
+                        || facilityJoinIsAuthorised())
+                    && linkedPatientIsAuthorised();
       allow update: if isAdmin()
-                    || (request.auth.uid == uid && !changesPrivilegedUserFields());
+                    || (request.auth.uid == uid
+                        && !changesPrivilegedUserFields()
+                        && (!changesFacilityFields() || facilityJoinIsAuthorised()));
       allow delete: if isAdmin();
     }
 
@@ -64,8 +133,25 @@ service cloud.firestore {
     }
 
     // 招待コード
+    //
+    // ドキュメントIDはコード文字列そのもの。users のルールが get() で照合するため。
+    //
+    // read を get と list に分けている。
+    //
+    // get を無条件にしているのは、**登録画面のコード確認がサインイン前に走る**ため。
+    // アカウントを作る前に「そのコードがどの施設・どの入居者のものか」を出す必要があり、
+    // ここを認証必須にすると新規登録が成立しない。
+    //
+    // 引き換えに残るのは「コードを総当たりされうる」こと。ただし当たったところで
+    // 得られるのは施設名等で、**コードを持っている＝参加を許可されている**という
+    // この仕組みの前提そのものなので、権限の面で新たに失うものは無い。
+    // 一方 list(クエリ)は施設関係者に限る。開けると総当たりすら不要になるため。
+    //
+    // **残る弱点はコードが6桁の数字であること**(10^6で探索可能)。
+    // 桁数を増やすか英数字にすれば桁違いに強くなる。UIの文言と併せて要検討。
     match /invite_codes/{codeId} {
-      allow read: if isSignedIn() && (
+      allow get: if true;
+      allow list: if isSignedIn() && (
         request.auth.uid == resource.data.createdBy ||
         belongsToFacility(resource.data.facilityId) ||
         isAdmin()
@@ -78,14 +164,23 @@ service cloud.firestore {
       allow create: if isSignedIn() && (
         belongsToFacility(request.resource.data.facilityId) || isFacilityAdmin() || isAdmin()
       );
-      // 「使用済みにする」以外の変更(facilityIdの付け替え等)をさせないよう制限する。
-      // 以前は isSignedIn() のみで、サインイン済みなら誰でも他施設のコードを書き換えられた。
+      // 更新でできることは「自分が使った印を付ける」だけに絞る。
+      //
+      // 以前は facilityId と code が変わらなければ何でも通ったため、
+      //   - 他人のコードを勝手に使用済みにして参加を妨害できた(usedByが誰でもよかった)
+      //   - 未使用コードの expiresAt を延ばせた
+      //   - **家族用コードの patientId を別の入居者に付け替えられた**
+      //     (次にそのコードを使う人が、別の入居者の家族として登録されてしまう)
+      // という余地が残っていた(2026-08-27の独立レビューで発見)。
+      //
+      // hasOnly で変更可能なキーを3つに限定し、usedBy が自分であることまで要求する。
       allow update: if isSignedIn() && (
         isAdmin() || (
           resource.data.used == false &&
           request.resource.data.used == true &&
-          request.resource.data.facilityId == resource.data.facilityId &&
-          request.resource.data.code == resource.data.code
+          request.resource.data.usedBy == request.auth.uid &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['used', 'usedBy', 'usedAt'])
         )
       );
       allow delete: if isAdmin();

@@ -31,13 +31,13 @@ class _PharmacistConnectionScreenState extends State<PharmacistConnectionScreen>
     if (code.length != 6) return;
     final now = Timestamp.now();
 
-    final snap = await FirebaseFirestore.instance
-        .collection('invite_codes')
-        .where('code', isEqualTo: code)
-        .where('used', isEqualTo: false)
-        .get();
+    // ドキュメントIDがコード文字列そのものなので、クエリではなくID指定で引く。
+    // firestore.rules は invite_codes を get のみ許可し list は施設関係者に限っている
+    // (コードを知らない人がクエリで一覧できないようにするため)。
+    final doc = await FirebaseFirestore.instance.collection('invite_codes').doc(code).get();
+    final data = doc.data();
 
-    if (snap.docs.isEmpty) {
+    if (!doc.exists || data == null || data['used'] == true) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('コードが見つかりません'), backgroundColor: Colors.red),
@@ -45,8 +45,6 @@ class _PharmacistConnectionScreenState extends State<PharmacistConnectionScreen>
       return;
     }
 
-    final doc = snap.docs.first;
-    final data = doc.data();
     final expiresAt = data['expiresAt'] as Timestamp;
 
     if (now.compareTo(expiresAt) > 0) {
@@ -74,6 +72,7 @@ class _PharmacistConnectionScreenState extends State<PharmacistConnectionScreen>
     // コードを使用済みに
     batch.update(doc.reference, {'used': true, 'usedBy': widget.user.uid, 'usedAt': FieldValue.serverTimestamp()});
 
+
     // 施設のpharmacistIdsに追加
     batch.update(
       FirebaseFirestore.instance.collection('facilities').doc(facilityId),
@@ -87,6 +86,9 @@ class _PharmacistConnectionScreenState extends State<PharmacistConnectionScreen>
         'facilityIds': FieldValue.arrayUnion([facilityId]),
         'facilityId': facilityId,
         'facilityName': facilityName,
+        // 所属を変える書き込みなので、根拠として使ったコードを残す。
+        // firestore.rules がこれを get() で照合し、実在・施設一致・未期限を確かめる。
+        'joinedWithCode': code,
       },
     );
 

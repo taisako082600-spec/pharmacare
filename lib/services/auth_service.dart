@@ -24,6 +24,11 @@ class AuthService {
     required String role,
     required String facilityName,
     required String facilityId,
+    // 招待コードで施設に参加する場合のコード文字列。
+    // firestore.rules は、施設に所属した状態のユーザー作成を、
+    // 「実在する有効な招待コードが提示されているか」で判定する。
+    // 判定材料としてドキュメントに残す必要があるため受け取る。
+    String joinedWithCode = '',
   }) async {
     final cred = await _auth.createUserWithEmailAndPassword(email: email, password: password);
 
@@ -45,6 +50,7 @@ class AuthService {
       'createdAt': FieldValue.serverTimestamp(),
       'isAdmin': false,
       'mfaRequired': requireMfa,
+      if (joinedWithCode.isNotEmpty) 'joinedWithCode': joinedWithCode,
     });
 
     // 二要素認証の登録にはメールアドレスの確認が前提になる(Firebaseの仕様)。

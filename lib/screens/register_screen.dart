@@ -120,6 +120,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
           'phone': _facilityPhoneController.text.trim(),
           'pharmacistIds': [],
           'adminUids': [cred.user!.uid],
+          // firestore.rules の facilities の create は createdBy が自分であることを
+          // 要求しているが、ここで書いていなかったため**新規施設の作成が拒否されていた**
+          // (2026-08-27に判明)。users のルールが「自分が作った施設なら所属してよい」を
+          // 判定する根拠にもなるので、必ず書く。
+          'createdBy': cred.user!.uid,
           'createdAt': FieldValue.serverTimestamp(),
         });
         facilityId = facilityRef.id;
@@ -133,13 +138,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
         // 招待コードを自動発行
         final code = _generateCode();
-        await FirebaseFirestore.instance.collection('invite_codes').add({
+        await FirebaseFirestore.instance.collection('invite_codes').doc(code).set({
           'code': code,
           'facilityId': facilityId,
           'facilityName': facilityName,
           'used': false,
           'expiresAt': Timestamp.fromDate(DateTime.now().add(const Duration(hours: 24))),
           'createdAt': FieldValue.serverTimestamp(),
+          'createdBy': cred.user!.uid,
         });
 
         if (!mounted) return;
@@ -200,6 +206,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
         facilityId = _selectedFacilityId ?? '';
         facilityName = _selectedFacilityName ?? '';
 
+        final inviteCode = _inviteCodeController.text.trim();
+
         final cred = await _authService.signUp(
           email: email,
           password: password,
@@ -207,18 +215,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
           role: _selectedRole,
           facilityName: facilityName,
           facilityId: facilityId,
+          // 施設に所属した状態でユーザーを作るため、その所属が正当であることを
+          // ルール側が確かめられるよう、使った招待コードを一緒に残す。
+          joinedWithCode: inviteCode,
         );
 
-        // 招待コードを使用済みに + 施設に追加
-        final codeSnap = await FirebaseFirestore.instance
-            .collection('invite_codes')
-            .where('code', isEqualTo: _inviteCodeController.text.trim())
-            .where('used', isEqualTo: false)
-            .get();
+        // 招待コードを使用済みに + 施設に追加。
+        // ドキュメントIDがコード文字列そのものなので、クエリではなくID指定で引く
+        // (firestore.rules の users が get() で同じドキュメントを照合している)。
+        final codeRef =
+            FirebaseFirestore.instance.collection('invite_codes').doc(inviteCode);
+        final codeDoc = await codeRef.get();
 
-        if (codeSnap.docs.isNotEmpty) {
+        if (codeDoc.exists && codeDoc.data()?['used'] != true) {
           final batch = FirebaseFirestore.instance.batch();
-          batch.update(codeSnap.docs.first.reference, {
+          batch.update(codeRef, {
             'used': true,
             'usedBy': cred.user!.uid,
             'usedAt': FieldValue.serverTimestamp(),
@@ -320,18 +331,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     try {
       final now = Timestamp.now();
-      final snap = await FirebaseFirestore.instance
-          .collection('invite_codes')
-          .where('code', isEqualTo: code)
-          .where('used', isEqualTo: false)
-          .get();
+      // ドキュメントIDがコード文字列そのものなのでID指定で引く。
+      // ここはサインイン前に走るため、firestore.rules 側も invite_codes の
+      // get だけは無条件に許可している(list は施設関係者限定)。
+      final doc =
+          await FirebaseFirestore.instance.collection('invite_codes').doc(code).get();
+      final data = doc.data();
 
-      if (snap.docs.isEmpty) {
+      if (!doc.exists || data == null || data['used'] == true) {
         setState(() { _error = 'コードが見つかりません。再確認してください。'; _loading = false; });
         return;
       }
-
-      final data = snap.docs.first.data();
       final expiresAt = data['expiresAt'] as Timestamp;
       if (now.compareTo(expiresAt) > 0) {
         setState(() { _error = 'コードの有効期限が切れています。新しいコードを発行してもらってください。'; _loading = false; });

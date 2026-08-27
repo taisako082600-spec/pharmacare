@@ -18,7 +18,9 @@ class FacilityAdminRequestsScreen extends StatelessWidget {
     final code = _generateCode();
     final expiresAt = DateTime.now().add(const Duration(minutes: 30));
 
-    await FirebaseFirestore.instance.collection('invite_codes').add({
+    // ドキュメントIDはコード文字列そのもの。firestore.rules の users が
+    // get() でこのドキュメントを引いて所属の正当性を確かめるため、自動採番IDにしない。
+    await FirebaseFirestore.instance.collection('invite_codes').doc(code).set({
       'code': code,
       'facilityId': user.facilityId,
       'facilityName': user.facilityName,
