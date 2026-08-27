@@ -224,10 +224,59 @@ function arrow(s, x, y, w) {
     { x: 1.15, y: 6.3, w: 11.0, h: 0.85, fontFace: F.jp, fontSize: 15, bold: true, color: C.deep, valign: 'middle', margin: 0 });
 }
 
-// ══════════════════════════════════ 機能一覧 — ここから答えの側
+// ══════════════════════════════════ 概要 — ここから答えの側
 //
 // 課題2枚(現状・なぜ今)を受けて「では何を作ったか」に切り替わる地点。
 // この先はトリアージまでアプリの話が続き、背景には戻らない。
+//
+// 登録手順そのものが「どんなアプリか」を説明している。施設が単位で、
+// 招待コードで人が加わり、役割で見えるものが変わる ― この3つが分かれば
+// 次の機能一覧が頭に入る。だから手順書ではなく全体像として見せる。
+{
+  const s = light();
+  heading(s, '施設を単位に、関わる人が集まる',
+    '作るのは施設ひとつ。あとは招待コードで、職員・薬剤師・ご家族が加わります');
+
+  const steps = [
+    ['1', '施設をつくる', C.deep],
+    ['2', '招待コード発行', C.mid],
+    ['3', '職員が参加', C.mid],
+    ['4', '入居者を登録', C.mid],
+    ['5', '家族を招待', C.amber],
+  ];
+  steps.forEach(([n, t, col], i) => {
+    const x = 0.8 + i * 2.45;
+    card(s, x, 2.25, 2.1, 2.0, C.wash);
+    badge(s, n, x + 0.75, 2.5, 0.62, col, 20);
+    s.addText(t, {
+      x: x + 0.02, y: 3.35, w: 2.06, h: 0.75,
+      fontFace: F.jp, fontSize: T.body, bold: true, color: C.deep, align: 'center', margin: 0,
+    });
+    if (i < 4) arrow(s, x + 2.14, 3.15, 0.24);
+  });
+
+  card(s, 0.8, 4.75, 11.7, 1.8, 'FFFFFF', 'DCE6E4');
+  s.addText('役割ごとに、見えるものが違う', {
+    x: 1.15, y: 4.98, w: 6, h: 0.4, fontFace: F.jp, fontSize: T.cardTitle, bold: true, color: C.deep, margin: 0,
+  });
+  const roles = [
+    ['薬剤師', '薬の登録・変更、相談対応'],
+    ['介護士・看護師', '服薬記録、バイタル、症状相談'],
+    ['家族', '処方とバイタルの閲覧のみ'],
+  ];
+  roles.forEach(([r, d], i) => {
+    const x = 1.15 + i * 3.8;
+    s.addText(r, { x, y: 5.5, w: 3.6, h: 0.35, fontFace: F.jp, fontSize: T.body, bold: true, color: C.mid, margin: 0 });
+    s.addText(d, { x, y: 5.9, w: 3.65, h: 0.45, fontFace: F.jp, fontSize: T.small, color: C.inkSub, margin: 0 });
+  });
+
+  // 導入のハードルの低さは検討段階でいちばん効く事実なので、全体像と一緒に置く。
+  s.addText('Webブラウザだけで使えます。専用アプリのインストールは要りません。施設の共用パソコンでも、タブレットでも同じ画面です。', {
+    x: 0.8, y: 6.72, w: 11.7, h: 0.4, fontFace: F.jp, fontSize: T.small, color: C.ink, margin: 0,
+  });
+}
+
+// ══════════════════════════════════ 機能一覧
 //
 // このアプリの主張(ばらばらの道具をひとつにする)を実際に背負っているスライド。
 // 記録 → 相談 → 判断の支援 の順に並べる。並び順そのものが主張になる。
@@ -272,48 +321,6 @@ function arrow(s, x, y, w) {
   });
   s.addText('②と⑤がつながっているのがこのアプリの要。「血圧が下がってきたので降圧薬を見直しては」という相談が、数字を見ながらできます。', {
     x: 0.8, y: 7.0, w: 11.7, h: 0.35, fontFace: F.jp, fontSize: T.small, color: C.ink, margin: 0,
-  });
-}
-
-// ══════════════════════════════════ 登録の流れ
-//
-// 機能一覧のあと。何ができるか分からないうちに手順を見せても入ってこない。
-// 後半のロール表は、機能一覧の⑦家族への共有を受ける位置でもある。
-{
-  const s = light();
-  heading(s, '施設をつくり、招待コードでつながる');
-
-  const steps = [
-    ['1', '施設をつくる', C.deep],
-    ['2', '招待コード発行', C.mid],
-    ['3', '職員が参加', C.mid],
-    ['4', '入居者を登録', C.mid],
-    ['5', '家族を招待', C.amber],
-  ];
-  steps.forEach(([n, t, col], i) => {
-    const x = 0.8 + i * 2.45;
-    card(s, x, 2.25, 2.1, 2.0, C.wash);
-    badge(s, n, x + 0.75, 2.5, 0.62, col, 20);
-    s.addText(t, {
-      x: x + 0.02, y: 3.35, w: 2.06, h: 0.75,
-      fontFace: F.jp, fontSize: T.body, bold: true, color: C.deep, align: 'center', margin: 0,
-    });
-    if (i < 4) arrow(s, x + 2.14, 3.15, 0.24);
-  });
-
-  card(s, 0.8, 4.75, 11.7, 1.8, 'FFFFFF', 'DCE6E4');
-  s.addText('役割ごとに、見えるものが違う', {
-    x: 1.15, y: 4.98, w: 6, h: 0.4, fontFace: F.jp, fontSize: T.cardTitle, bold: true, color: C.deep, margin: 0,
-  });
-  const roles = [
-    ['薬剤師', '薬の登録・変更、相談対応'],
-    ['介護士・看護師', '服薬記録、バイタル、症状相談'],
-    ['家族', '処方とバイタルの閲覧のみ'],
-  ];
-  roles.forEach(([r, d], i) => {
-    const x = 1.15 + i * 3.8;
-    s.addText(r, { x, y: 5.5, w: 3.6, h: 0.35, fontFace: F.jp, fontSize: T.body, bold: true, color: C.mid, margin: 0 });
-    s.addText(d, { x, y: 5.9, w: 3.65, h: 0.45, fontFace: F.jp, fontSize: T.small, color: C.inkSub, margin: 0 });
   });
 }
 
