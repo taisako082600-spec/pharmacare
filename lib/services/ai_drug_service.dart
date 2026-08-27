@@ -12,12 +12,21 @@ class AiDrugService {
   AiDrugService._internal();
 
   // Goプロキシのベースエンドポイント。
-  // ここに書いてあるのはローカル開発用のデフォルト値。本番ビルドは
-  // `--dart-define=LLM_PROXY_URL=...` でCloud RunのURLを注入して上書きする
-  // (本番URLはリポジトリに書かず、ビルド時に渡す)。
+  //
+  // 以前はデフォルトを localhost:8081 にして「本番は --dart-define で渡す」運用に
+  // していたが、渡し忘れた本番ビルドがそのまま出て、全端末が自分自身の
+  // localhost を叩き続けていた(2026-08-27に実機のスクリーンショットで発覚。
+  // 配信中の main.dart.js に localhost:8081 が3箇所、Cloud RunのURLは0箇所)。
+  // 画面には「プロキシに接続できません」としか出ないため、誰も気づけない。
+  //
+  // このURLは秘匿情報ではない。ブラウザから直接叩かれる公開エンドポイントで、
+  // 配信されるJSを開けば誰でも読める。保護しているのはURLの秘匿ではなく
+  // Firebase IDトークンの検証(auth_middleware.go)と許可オリジンの列挙(cors.go)。
+  // 隠して得るものが無く、隠したことで機能が丸ごと止まったので、既定値にする。
+  // ローカル開発は `--dart-define=LLM_PROXY_URL=http://localhost:8081` で上書きする。
   static const String _proxyBaseUrl = String.fromEnvironment(
     'LLM_PROXY_URL',
-    defaultValue: 'http://localhost:8081',
+    defaultValue: 'https://pharmacore-llm-proxy-p6j6p3dn5q-an.a.run.app',
   );
 
   Future<String?> _authHeaderToken() async {

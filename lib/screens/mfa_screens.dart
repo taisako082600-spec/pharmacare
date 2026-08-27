@@ -232,11 +232,22 @@ class _MfaSettingsScreenState extends State<MfaSettingsScreen> {
         _error = MfaService.isUnverifiedEmail(e)
             ? 'メールアドレスの確認が済んでいません。確認メールのリンクを開いてから、'
                 '「状態を更新」を押してください'
-            : '設定を開始できませんでした（${MfaService.errorCode(e)}）。'
-                '時間をおいて、もう一度お試しください';
+            : '設定を開始できませんでした。時間をおいて、もう一度お試しください'
+                '${_detail(e)}';
         _submitting = false;
       });
     }
+  }
+
+  /// 失敗の手がかりを括弧書きで添える。
+  /// 以前は `e.runtimeType` をそのまま出していて「（JSObject）」としか表示されず、
+  /// 利用者にも問い合わせを受ける側にも何の情報にもなっていなかった。
+  /// コードが取れないときは、せめてJS側のメッセージを出す。
+  String _detail(Object e) {
+    final code = MfaService.errorCode(e);
+    if (code != e.runtimeType.toString()) return '（$code）';
+    final message = MfaService.errorMessage(e);
+    return message == null ? '' : '（$message）';
   }
 
   Future<void> _completeEnrollment() async {

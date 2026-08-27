@@ -102,7 +102,40 @@ function getAllFiles(dir, base = dir) {
   return files;
 }
 
+// ビルド成果物に開発用の向き先が焼き込まれていないか確かめる。
+//
+// 2026-08-27: LLMプロキシのURLを --dart-define で渡す運用にしていたが、渡し忘れた
+// ビルドが本番に出て、全端末が自分自身の localhost:8081 を叩いていた。画面には
+// 「プロキシに接続できません」としか出ないので、実機のスクリーンショットを見るまで
+// 誰も気づけなかった。人が忘れうる手順は、デプロイ前に機械が止める。
+function assertNoDevEndpoints() {
+  // 見るのは flutter が今出力した main.dart.js ちょうど1つ。
+  // build/web には前回デプロイの main.dart.<timestamp>.js が残っていることがあり、
+  // パターン一致で拾うと古いコピーを検査してしまう(実際に踏んだ)。
+  const mainJs = 'main.dart.js';
+  const mainJsPath = path.join(BUILD_DIR, mainJs);
+  if (!fs.existsSync(mainJsPath)) {
+    throw new Error(`${mainJsPath} がありません。先に flutter build web を実行してください。`);
+  }
+
+  const code = fs.readFileSync(mainJsPath, 'utf8');
+  const found = ['localhost:8081', '127.0.0.1:8081'].filter((s) => code.includes(s));
+  if (found.length > 0) {
+    throw new Error(
+      `${mainJs} に開発用の向き先が残っています: ${found.join(', ')}\n` +
+        'この状態で配信すると、利用者の端末が自分自身のlocalhostを叩き、\n' +
+        'AI関連の機能が「プロキシに接続できません」で全滅します。\n' +
+        'lib/services/ai_drug_service.dart の _proxyBaseUrl を確認し、\n' +
+        '--dart-define=LLM_PROXY_URL を付けずに flutter build web し直してください。'
+    );
+  }
+  console.log(`Endpoint check OK (${mainJs})`);
+}
+
 async function deploy() {
+  // 開発用の向き先が混ざっていないかは、認証やアップロードより先に見る。
+  assertNoDevEndpoints();
+
   // 認証はビルド成果物に触る前に済ませる。順序を逆にすると、認証で失敗したときに
   // build/web だけ書き換わった中途半端な状態が残る(2026-08-16に鍵消失で実際に踏んだ)。
   console.log('Getting auth token...');
