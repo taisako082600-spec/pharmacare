@@ -1,0 +1,489 @@
+<title>案件を受けられる状態にする</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@700;900&family=IBM+Plex+Sans+JP:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+
+<style>
+  :root {
+    --ground: #F5F6F9;
+    --surface: #FFFFFF;
+    --sunken: #EBEDF2;
+    --ink: #10141B;
+    --ink-soft: #545C6B;
+    --ink-faint: #858C99;
+    --rule: #DCDFE7;
+    --rule-strong: #C2C6D1;
+    --structure: #3D3A6E;
+
+    --found: #0E7C79;
+    --found-wash: #E4F1F0;
+    --missed: #A33E33;
+    --missed-wash: #F7EAE8;
+    --human: #8A6111;
+    --human-wash: #F6F0E2;
+
+    --display: "Zen Kaku Gothic New", "Yu Gothic", sans-serif;
+    --sans: "IBM Plex Sans JP", "Yu Gothic", "Hiragino Sans", sans-serif;
+    --mono: "IBM Plex Mono", Consolas, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #101319;
+      --surface: #171B23;
+      --sunken: #1E232C;
+      --ink: #E6E8EC;
+      --ink-soft: #A0A7B3;
+      --ink-faint: #79808C;
+      --rule: #2A2F39;
+      --rule-strong: #3C424D;
+      --structure: #A9A5E0;
+      --found: #4FBFB8;
+      --found-wash: #16292E;
+      --missed: #E0847A;
+      --missed-wash: #2E1F1E;
+      --human: #D8B25E;
+      --human-wash: #2B2519;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #101319;
+    --surface: #171B23;
+    --sunken: #1E232C;
+    --ink: #E6E8EC;
+    --ink-soft: #A0A7B3;
+    --ink-faint: #79808C;
+    --rule: #2A2F39;
+    --rule-strong: #3C424D;
+    --structure: #A9A5E0;
+    --found: #4FBFB8;
+    --found-wash: #16292E;
+    --missed: #E0847A;
+    --missed-wash: #2E1F1E;
+    --human: #D8B25E;
+    --human-wash: #2B2519;
+  }
+
+  body {
+    background: var(--ground); color: var(--ink);
+    font-family: var(--sans); font-size: 15px; line-height: 1.85;
+    margin: 0; padding: 0 20px 96px; -webkit-font-smoothing: antialiased;
+  }
+  .doc { max-width: 860px; margin: 0 auto; }
+
+  header.top { padding: 76px 0 30px; }
+  .eyebrow {
+    font-family: var(--mono); font-size: 11.5px; letter-spacing: 0.1em;
+    color: var(--structure); margin: 0 0 20px; text-transform: uppercase;
+  }
+  h1 {
+    font-family: var(--display); font-weight: 900;
+    font-size: clamp(30px, 5.4vw, 46px); line-height: 1.3;
+    margin: 0 0 18px; text-wrap: balance; letter-spacing: -0.01em;
+  }
+  .standfirst {
+    font-size: 16.5px; color: var(--ink-soft); max-width: 60ch;
+    margin: 0 0 30px; line-height: 1.8;
+  }
+  dl.meta {
+    display: flex; flex-wrap: wrap; gap: 8px 28px; margin: 0;
+    padding-top: 22px; border-top: 2px solid var(--structure);
+    font-size: 13px;
+  }
+  dl.meta div { display: flex; gap: 10px; }
+  dl.meta dt { color: var(--ink-faint); }
+  dl.meta dd { margin: 0; font-weight: 500; }
+
+  section { margin-top: 60px; }
+  h2 {
+    font-family: var(--display); font-weight: 700; font-size: 23px;
+    line-height: 1.45; margin: 0 0 18px; padding-bottom: 12px;
+    border-bottom: 1px solid var(--rule-strong); text-wrap: balance;
+    display: flex; align-items: baseline; gap: 14px;
+  }
+  h2 .n {
+    font-family: var(--mono); font-size: 13px; font-weight: 500;
+    color: var(--structure); flex: none;
+  }
+  h3 {
+    font-size: 15.5px; font-weight: 700; color: var(--structure);
+    margin: 32px 0 8px;
+  }
+  p { margin: 14px 0; }
+  a { color: var(--found); text-underline-offset: 3px; }
+  a:focus-visible { outline: 2px solid var(--found); outline-offset: 3px; }
+  code {
+    font-family: var(--mono); font-size: 0.86em; background: var(--sunken);
+    padding: 1px 5px; border-radius: 3px;
+  }
+  pre {
+    font-family: var(--mono); font-size: 12.5px; line-height: 1.75;
+    background: var(--sunken); border-left: 3px solid var(--rule-strong);
+    padding: 14px 18px; overflow-x: auto; margin: 16px 0;
+  }
+  pre code { background: none; padding: 0; }
+
+  .scroll { overflow-x: auto; margin: 18px 0; }
+  table {
+    width: 100%; border-collapse: collapse; font-size: 13.5px;
+    font-variant-numeric: tabular-nums;
+  }
+  th, td {
+    text-align: left; padding: 10px 14px; vertical-align: top;
+    border-bottom: 1px solid var(--rule);
+  }
+  thead th {
+    font-size: 11.5px; letter-spacing: 0.05em; color: var(--ink-faint);
+    border-bottom: 1px solid var(--rule-strong); white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+
+  ul, ol { margin: 14px 0; padding-left: 1.35em; }
+  li { margin: 7px 0; }
+  li::marker { color: var(--structure); }
+
+  .callout {
+    background: var(--surface); border: 1px solid var(--rule);
+    border-left: 3px solid var(--structure); border-radius: 0 6px 6px 0;
+    padding: 16px 20px; margin: 20px 0; font-size: 14.5px;
+  }
+  .callout p:first-child { margin-top: 0; }
+  .callout p:last-child { margin-bottom: 0; }
+
+  /* ── §5 の三分割台帳 ─────────────────
+     色は装飾ではなく「誰が捕まえたか」を表す。
+     この文書の主張そのものなので、差し色はここに集中させる。 */
+  .ledger { display: grid; gap: 18px; margin: 22px 0; }
+  .band { border-radius: 8px; padding: 18px 22px; border: 1px solid; }
+  .band h3 {
+    margin: 0 0 4px; font-family: var(--display); font-size: 17px;
+  }
+  .band .count {
+    font-family: var(--mono); font-size: 12px; margin: 0 0 14px;
+  }
+  .band table { font-size: 13px; }
+  .band th, .band td { border-bottom-color: currentColor; }
+  .band tbody td { border-bottom: 1px solid var(--rule); }
+  .band .why {
+    margin: 14px 0 0; padding-top: 12px; border-top: 1px dashed var(--rule-strong);
+    font-size: 13.5px;
+  }
+
+  .band-found { background: var(--found-wash); border-color: var(--found); }
+  .band-found h3, .band-found .count { color: var(--found); }
+  .band-missed { background: var(--missed-wash); border-color: var(--missed); }
+  .band-missed h3, .band-missed .count { color: var(--missed); }
+  .band-human { background: var(--human-wash); border-color: var(--human); }
+  .band-human h3, .band-human .count { color: var(--human); }
+
+  /* ── 段階つきチェックリスト ─────────────
+     企画→設計→実装→受注準備 は実際の順序なので、番号に意味がある。 */
+  .phase { margin: 26px 0; }
+  .phase-head {
+    display: flex; align-items: baseline; gap: 12px; margin-bottom: 10px;
+  }
+  .phase-head .step {
+    font-family: var(--mono); font-size: 11.5px; font-weight: 500;
+    color: var(--surface); background: var(--structure);
+    padding: 2px 9px; border-radius: 3px;
+  }
+  .phase-head h3 { margin: 0; color: var(--ink); }
+  ul.checks { list-style: none; padding: 0; margin: 0; }
+  ul.checks li {
+    padding: 8px 0 8px 30px; position: relative;
+    border-bottom: 1px solid var(--rule); font-size: 14px;
+  }
+  ul.checks li:last-child { border-bottom: none; }
+  ul.checks li::before {
+    content: ""; position: absolute; left: 4px; top: 15px;
+    width: 12px; height: 12px; border: 1.5px solid var(--rule-strong);
+    border-radius: 2px;
+  }
+
+  footer {
+    margin-top: 68px; padding-top: 20px; border-top: 1px solid var(--rule);
+    font-size: 12.5px; color: var(--ink-faint);
+  }
+
+  @media (max-width: 600px) {
+    body { font-size: 14.5px; padding: 0 16px 64px; }
+    header.top { padding-top: 48px; }
+    h2 { flex-direction: column; gap: 4px; }
+    .band { padding: 16px; }
+  }
+</style>
+
+<div class="doc">
+
+<header class="top">
+  <p class="eyebrow">Handover — Security Management</p>
+  <h1>案件を受けられる状態にする</h1>
+  <p class="standfirst">医療・介護のような他人の機微な情報を預かるアプリを、第三者に提供して報酬を得られる水準まで上げるために必要なこと。理屈ではなく、ファーマケアで実際に起きたことを根拠にしています。</p>
+  <dl class="meta">
+    <div><dt>作成</dt><dd>2026年8月27日</dd></div>
+    <div><dt>引継ぎ先</dt><dd>新規プロジェクト（Cowork）</dd></div>
+    <div><dt>裏付け</dt><dd>pharmacist_app リポジトリと履歴</dd></div>
+  </dl>
+</header>
+
+<section>
+  <h2><span class="n">§1</span><span>規制は3層に分かれている</span></h2>
+  <p>混ぜると判断を誤ります。「ガイドラインで求められている」は法的義務ではありません。</p>
+  <div class="scroll"><table>
+    <thead><tr><th>層</th><th>例</th><th>強制力</th><th>名宛人</th></tr></thead>
+    <tbody>
+      <tr><td><strong>法律</strong></td><td>個人情報保護法、薬機法、e-文書法</td><td>あり（罰則）</td><td>事業者・提供者</td></tr>
+      <tr><td><strong>ガイドライン</strong></td><td>厚労省 医療情報システム安全管理GL、3省2ガイドライン</td><td>なし</td><td>医療機関等／提供事業者</td></tr>
+      <tr><td><strong>取引条件</strong></td><td>顧客の導入審査、Pマーク提出要求</td><td>なし（ただし受注できない）</td><td>交渉次第</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="callout">
+    <p>個人情報保護法の<strong>委託先監督義務は顧客（施設）側の義務</strong>で、提供者の義務ではありません。提供者自身の法的義務は<strong>安全管理措置を講じること</strong>（23条）まで。<strong>第三者認証の取得義務は法律上ありません。</strong></p>
+  </div>
+
+  <h3>別軸で最も重いのは薬機法</h3>
+  <p>プログラムが「疾病の診断・治療・予防」を目的とすると<strong>プログラム医療機器</strong>に該当し、製造販売業許可と承認／認証が必要になります。無許可販売は違法（罰則あり）。セキュリティとは独立した論点で、<strong>企画段階で該当性を確認すべき</strong>ものです。</p>
+</section>
+
+<section>
+  <h2><span class="n">§2</span><span>認証は「指定された施設のみ」ではない</span></h2>
+  <div class="scroll"><table>
+    <thead><tr><th></th><th>個人事業主</th><th>法人</th><th>備考</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Pマーク</strong></td><td>申請可能</td><td>可能</td><td>法人番号が無い場合、開業届または直近2期の決算書で代替</td></tr>
+      <tr><td><strong>ISMS (ISO/IEC 27001)</strong></td><td>申請可能</td><td>可能</td><td>組織単位の審査</td></tr>
+    </tbody>
+  </table></div>
+  <p><strong>法人格は要件ではありません。</strong>詰まるのは別のところです。</p>
+
+  <h3>実際の障壁は「体制」</h3>
+  <p>どちらの認証も、<strong>技術が優れていることを見る制度ではありません。</strong>組織として回っているかを見ます。</p>
+  <ul>
+    <li><strong>内部監査の独立性</strong> — 自分で作って自分で監査する状態は認められない。1人だと外部委託が要る</li>
+    <li><strong>教育の記録</strong> — 従業者への年次教育とその証跡</li>
+    <li><strong>規程類</strong> — 基本方針、取扱規程、委託先管理、事故対応</li>
+    <li><strong>運用実績</strong> — 作った直後では審査に出せない。数ヶ月〜の運用記録が要る</li>
+  </ul>
+  <p>つまり「実力次第で個人でも取れる」は<strong>半分正しい</strong>。技術力では取れませんが、体制を作れば個人事業主でも取れます。費用はPマークで30〜80万円＋審査費用、期間は半年〜1年が目安です。</p>
+
+  <h3>「会社として通用するレベル」の実像</h3>
+  <p>顧客の導入審査で実際に問われるのは、認証の有無だけではありません。</p>
+  <ol>
+    <li><strong>委託先としての適格性を開示できるか</strong>（3省2ガイドライン 表4-1 に対応した文書）</li>
+    <li><strong>データの所在</strong> — どのリージョンに置き、なぜそこか</li>
+    <li><strong>バックアップと復旧</strong> — 復元可能な期間、手順書</li>
+    <li><strong>監査ログ</strong> — 誰がいつ何を見たか。<strong>顧客自身が確認できるか</strong></li>
+    <li><strong>事故時の連絡体制</strong></li>
+    <li><strong>賠償責任保険</strong> — 個人事業主だと未加入が多く、ここで止まることがある</li>
+    <li>第三者評価の有無 — <strong>無い場合、代替の説明ができるか</strong></li>
+  </ol>
+  <div class="callout">
+    <p><strong>認証が無くても、1〜6が揃っていれば受注できる案件はあります。</strong>逆に認証だけあって1〜6が無いと審査で詰まります。順序としては1〜6が先です。</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="n">§3</span><span>設計原則</span></h2>
+  <p>ファーマケアで見つかった脆弱性は<strong>すべて同じ形</strong>をしていました。次は最初から避けられます。</p>
+
+  <h3>原則1　権限を決めるフィールドを、本人に書かせない</h3>
+  <pre><code>悪い： users/{uid}.isAdmin を本人が更新できる
+       → isAdmin() がそれを読んで判定している
+       → 自分に true を書けば管理者になれる</code></pre>
+  <p>同じ構造で3件ありました。<code>isAdmin</code>（全施設の患者が読める）、<code>facilityId</code>（任意の施設の患者が読める）、<code>linkedPatientId</code>（誰でも任意の患者の家族になれる）。</p>
+  <p><strong>チェック方法：</strong>権限判定に使っているフィールドを列挙し、それぞれ「誰が書けるか」を確認する。</p>
+
+  <h3>原則2　create と update で判定が違う</h3>
+  <pre><code>悪い： 差分(diff)で禁止フィールドを守る
+       → 差分は「既存ドキュメントとの比較」なので update にしか効かない
+       → 新規作成は素通し</code></pre>
+  <p><code>linkedPatientId</code> はこれで抜けていました。差分ベースの防御を書いたら、必ず create 側も別に書く。</p>
+
+  <h3>原則3　クライアント側の検証は、無いのと同じ</h3>
+  <p>招待コードの検証がDartにしか無く、サーバーは「facilityIdが書かれていれば信じる」状態でした。</p>
+  <p><strong>解法：</strong>ルール内の <code>get()</code> は read 権限を経由しないので、<strong>クライアントに読ませないまま照合できます</strong>。そのためには照合先を<strong>IDで引ける形</strong>にしておく必要があります（コード文字列そのものをドキュメントIDにする、<code>{userId}_{facilityId}</code> のような決定的IDにする）。設計時に決めておくと後が楽です。</p>
+
+  <h3>原則4　攻撃と正規操作の両方をテストする</h3>
+  <p>締めすぎて正規の操作が壊れるほうが、実運用では穴より先に問題になります。ファーマケアのルールテストは16ケースで、<strong>うち5件は「通るべき操作」</strong>です。</p>
+  <div class="callout">
+    <p>ルールテストAPIで更新を検証するときは、<strong>更新前のドキュメント（<code>testCase.resource</code>）を渡さないと <code>diff()</code> が評価できず、正当な操作まで DENY と出ます。</strong>これで一度誤読しました。</p>
+  </div>
+
+  <h3>原則5　仕様書と実装がずれる</h3>
+  <ul>
+    <li>開示書に「二要素認証は任意設定、登録者0名」とあったが、実装は必須化済みだった</li>
+    <li>READMEに「本番ビルドはCloud Run URLを埋め込み済み」とあったが、<strong>埋め込まれていなかった</strong></li>
+  </ul>
+  <p><strong>顧客に見せる文書ほど、コードから生成するか、変更時に必ず突き合わせる。</strong></p>
+</section>
+
+<section>
+  <h2><span class="n">§4</span><span>「動いているつもり」を潰す</span></h2>
+  <p>この案件で一番大きかった不具合は、脆弱性ではなくこれです。</p>
+  <div class="callout">
+    <p>服薬注意点の機能が、<strong>一度も動いたことがなかった。</strong>プロキシURLを <code>--dart-define</code> で渡す設計で、渡し忘れたビルドが本番に出ていた。全端末が自分自身の <code>localhost:8081</code> を叩いていた。</p>
+  </div>
+  <p>画面には「プロキシに接続できません」としか出ないので、<strong>実機のスクリーンショットを見るまで誰も気づけませんでした。</strong></p>
+
+  <h3>対策</h3>
+  <ol>
+    <li><strong>既定値は本番を指す。</strong>開発環境のほうを上書きする（逆にしない）</li>
+    <li><strong>デプロイ時に機械が止める。</strong>成果物に開発用の向き先が残っていたら中止</li>
+    <li><strong>配信中の成果物を直接確認する</strong></li>
+  </ol>
+  <pre><code>curl -s https://&lt;site&gt;/flutter_bootstrap.js | grep -o 'main\.dart[^"]*\.js'
+curl -s https://&lt;site&gt;/&lt;その名前&gt; | grep -c 'localhost'</code></pre>
+  <p>同種のものが他に3件ありました。<strong>呼び出し元が無い関数は、壊れていても気づけません</strong>（施設の監査ログ取得は <code>documentId == facilityId</code> で照合しており、常に0件を返す実装でした）。</p>
+</section>
+
+<section>
+  <h2><span class="n">§5</span><span>AIと人のチェックの分担</span></h2>
+  <p>この案件の実績で書きます。感想ではなく記録です。</p>
+
+  <div class="ledger">
+    <div class="band band-found">
+      <h3>AIが見つけたもの</h3>
+      <p class="count">6件</p>
+      <div class="scroll"><table>
+        <tbody>
+          <tr><td>権限昇格3件（isAdmin / facilityId / linkedPatientId）</td><td>ルールを1行ずつ読み、権限判定の入力になるフィールドを追跡</td></tr>
+          <tr><td>本番が全端末localhostを叩いていた</td><td>配信中のバンドルを落として grep</td></tr>
+          <tr><td>新規施設の作成が拒否されていた</td><td>ルールが要求するフィールドを、クライアントが書いているか照合</td></tr>
+          <tr><td>薬剤師の承認が常に失敗していた</td><td>同上</td></tr>
+          <tr><td>監査ログ取得クエリが常に0件</td><td>条件式の意味を読んだ</td></tr>
+          <tr><td>添付文書11.2の表構造が抽出で壊れる</td><td>実データで抽出して中身を見た</td></tr>
+        </tbody>
+      </table></div>
+      <p class="why"><strong>共通点：</strong>網羅性と、機械的な照合。人が「ここは大丈夫だろう」と飛ばすところを飛ばさない。</p>
+    </div>
+
+    <div class="band band-missed">
+      <h3>AIが外したもの</h3>
+      <p class="count">4件</p>
+      <div class="scroll"><table>
+        <tbody>
+          <tr><td>PMDA検索の失敗を「全角のせい」と推定</td><td><strong>半角でも失敗した。</strong>実測せずに仮説を書いた</td></tr>
+          <tr><td>注意点が出ない原因を「APIキー未設定」と推定</td><td><strong>URLが原因だった。</strong>もっともらしい方に飛びついた</td></tr>
+          <tr><td>ルールテストのケース③自体が誤り</td><td>「自分が作った施設なら通る」が正しい挙動だった</td></tr>
+          <tr><td>JSONの検証を「一部を切り出して parse」で済ませた</td><td>周囲が壊れていても通る検証だった</td></tr>
+        </tbody>
+      </table></div>
+      <p class="why"><strong>共通点：</strong>もっともらしい仮説を、検証せずに結論として書く。<strong>実測すると外れる。</strong></p>
+    </div>
+
+    <div class="band band-human">
+      <h3>人が決めたこと</h3>
+      <p class="count">4件</p>
+      <div class="scroll"><table>
+        <tbody>
+          <tr><td>「PMDA検索は一般名がいい」</td><td><strong>ドメイン知識。</strong>実測とも一致した</td></tr>
+          <tr><td>11.2は入れない</td><td><strong>スコープ判断。</strong>表が壊れた状態でLLMに整理させる危険を避けた</td></tr>
+          <tr><td>「一番見たいのは介護している人では？」</td><td><strong>利用者理解。</strong>薬剤師限定の実装を作り直させた</td></tr>
+          <tr><td>資料の構成、登録手順を概要の枠として使う</td><td><strong>伝え方の判断</strong></td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </div>
+
+  <h3>この分担が噛み合う理由</h3>
+  <ul>
+    <li><strong>AIは網羅性で強く、確信度の較正で弱い。</strong>「全部見る」は得意、「これは自信がない」と言うのは苦手</li>
+    <li><strong>人は判断で強く、網羅で弱い。</strong>118項目を1つずつ照合するのは向かない</li>
+  </ul>
+  <p>したがって <strong>AIに全部読ませ、結論は必ず実測か人の判断で確定させる</strong>のが噛み合います。</p>
+
+  <h3>実務上のルール</h3>
+  <ol>
+    <li>AIの出す原因究明は、<strong>必ず実測で裏を取ってから</strong>修正に進む（仮説をコミットメッセージに書かない）</li>
+    <li><strong>AIが作ったテストも疑う。</strong>テストのほうが間違っている可能性を検討する</li>
+    <li><strong>判断（スコープ・優先順位・利用者にとっての意味）は人が持つ</strong></li>
+    <li>AIが「検証しました」と言ったら、<strong>何をどう検証したかを確認する</strong></li>
+  </ol>
+
+  <h3>優位性として言えること</h3>
+  <ul>
+    <li><strong>網羅的なレビューを毎回できる。</strong>人力だと工数が合わない</li>
+    <li><strong>見つけた穴の再現手順とテストを同時に作れる</strong>（この案件ではルールテスト16件が残った）</li>
+    <li><strong>判断の理由をコメントと履歴に残せる。</strong>引継ぎと監査に効く</li>
+  </ul>
+  <div class="callout">
+    <p><strong>ただし「AIが見たから安全」は成立しません。</strong>上のとおり外します。<strong>AIが網羅し、人が確定させる</strong>という工程そのものが成果物です。</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="n">§6</span><span>新規プロジェクトの初期チェックリスト</span></h2>
+
+  <div class="phase">
+    <div class="phase-head"><span class="step">企画</span><h3>コードを書く前</h3></div>
+    <ul class="checks">
+      <li><strong>薬機法の該当性を確認する。</strong>診断・治療に関わる出力があるなら、企画段階でPMDA／薬務課に相談</li>
+      <li>誰の情報を、誰から預かるのかを整理する（要配慮個人情報か）</li>
+      <li>自分が<strong>委託先</strong>なのか、<strong>個人データを取り扱わない</strong>立場なのかを決める</li>
+      <li>データの所在（国内リージョン）を決める</li>
+    </ul>
+  </div>
+
+  <div class="phase">
+    <div class="phase-head"><span class="step">設計</span><h3>権限とログ</h3></div>
+    <ul class="checks">
+      <li>権限判定に使うフィールドを列挙し、<strong>書き込み権限を分離</strong>する</li>
+      <li>照合が必要なドキュメントは<strong>IDで引ける形</strong>にする</li>
+      <li>create と update の両方で検証する</li>
+      <li>監査ログの設計（誰が・いつ・何を・変更前後）と、<strong>顧客が自分で見られる導線</strong></li>
+    </ul>
+  </div>
+
+  <div class="phase">
+    <div class="phase-head"><span class="step">実装</span><h3>壊れていることに気づける状態</h3></div>
+    <ul class="checks">
+      <li>権限ルールのテストを、<strong>攻撃と正規操作の両方</strong>で書く</li>
+      <li>デプロイ時に開発用の向き先が混ざっていないか機械で止める</li>
+      <li>配信中の成果物を直接確認する手順を持つ</li>
+    </ul>
+  </div>
+
+  <div class="phase">
+    <div class="phase-head"><span class="step">受注</span><h3>審査で聞かれるもの</h3></div>
+    <ul class="checks">
+      <li>情報セキュリティ基本方針・取扱規程</li>
+      <li>委託先適格性の開示書（3省2ガイドライン 表4-1 対応）</li>
+      <li>事故対応手順</li>
+      <li>賠償責任保険</li>
+      <li>（必要なら）Pマーク／ISMS。<strong>体制が先、認証は後</strong></li>
+    </ul>
+  </div>
+</section>
+
+<section>
+  <h2><span class="n">§7</span><span>持ち出せる資産</span></h2>
+  <div class="scroll"><table>
+    <thead><tr><th>ファイル</th><th>内容</th></tr></thead>
+    <tbody>
+      <tr><td><code>firestore.rules</code></td><td>権限設計の実例。コメントに「なぜそうしたか」と「何が起きたか」を残してある</td></tr>
+      <tr><td><code>test_rules.js</code></td><td>ルールテストAPIの使い方。16ケース</td></tr>
+      <tr><td><code>deploy.js</code> の <code>assertNoDevEndpoints()</code></td><td>開発用の向き先を検出してデプロイを止める</td></tr>
+      <tr><td><code>SERVICE_DISCLOSURE.md</code></td><td>委託先適格性の開示書のひな形</td></tr>
+      <tr><td><code>COMPLIANCE.md</code></td><td>準拠状況の書き方（未対応も明記する形式）</td></tr>
+      <tr><td><code>SAMD_CONSULTATION.md</code></td><td>医療機器該当性の相談資料。自分に不利な点を自分から挙げる構成</td></tr>
+      <tr><td><code>lib/services/invite_code.dart</code></td><td>コード生成・正規化・表示。紛らわしい文字の除外</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section>
+  <h2><span class="n">§8</span><span>Coworkで続けるときの前提</span></h2>
+  <ul>
+    <li>ファーマケアは<strong>公開リポジトリ</strong>（2026-08-10から公開）。特許は取らない判断</li>
+    <li>本番は Firebase（<code>asia-northeast1</code>）＋ Cloud Run</li>
+    <li><strong>薬機法の該当性確認は未実施。</strong>新規プロジェクトでも同じ論点が出るなら、先に片付ける</li>
+    <li>この文書の各項目は、<code>pharmacist_app</code> リポジトリの該当ファイルとコミット履歴に裏付けがある</li>
+  </ul>
+</section>
+
+<footer>
+  出典: Pマークの申請要件は JIPDEC プライバシーマーク制度の申請手続に拠る。規制の分類は個人情報保護法、医薬品医療機器等法、および各ガイドライン原文の参照による。法令解釈について専門家の確認を受けたものではない。
+</footer>
+
+</div>
