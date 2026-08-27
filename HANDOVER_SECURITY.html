@@ -176,6 +176,23 @@
   .band-human { background: var(--human-wash); border-color: var(--human); }
   .band-human h3, .band-human .count { color: var(--human); }
 
+  /* ── §6「残るもの」──────────────────
+     ここは表ではなく主張なので、散文として読ませる。
+     番号は「3つある」ことを示すためのもので、順序ではない。 */
+  ol.remains { list-style: none; padding: 0; counter-reset: r; margin: 20px 0; }
+  ol.remains li {
+    counter-increment: r; margin: 0 0 16px;
+    padding: 16px 20px 16px 56px; position: relative;
+    background: var(--surface); border: 1px solid var(--rule); border-radius: 8px;
+  }
+  ol.remains li::before {
+    content: counter(r); position: absolute; left: 20px; top: 16px;
+    font-family: var(--mono); font-size: 15px; font-weight: 500;
+    color: var(--structure);
+  }
+  ol.remains li > strong { display: block; font-size: 15.5px; }
+  ol.remains li > p { margin: 6px 0 0; font-size: 14px; }
+
   /* ── 段階つきチェックリスト ─────────────
      企画→設計→実装→受注準備 は実際の順序なので、番号に意味がある。 */
   .phase { margin: 26px 0; }
@@ -413,7 +430,52 @@ curl -s https://&lt;site&gt;/&lt;その名前&gt; | grep -c 'localhost'</code></
 </section>
 
 <section>
-  <h2><span class="n">§6</span><span>新規プロジェクトの初期チェックリスト</span></h2>
+  <h2><span class="n">§6</span><span>これは事業上の武器になるのか</span></h2>
+  <p>誰でもアプリを作れるようになると、セキュリティマネジメントが差別化になる——という見方について。<strong>半分は正しく、半分は危険です。</strong></p>
+
+  <h3>武器にならないもの</h3>
+  <p><strong>「AIでセキュリティを見られること」は武器になりません。</strong>§5で挙げた権限昇格3件も、本番が全端末localhostを叩いていた件も、特別な才能ではなく網羅的に読んだ結果です。<strong>これは早晩、誰でもできるようになります。</strong>ここを売りにすると、1〜2年で価値が消えます。</p>
+
+  <h3>残るもの — AIが構造的に担えない</h3>
+  <p>能力の問題ではなく、制度の問題です。</p>
+  <ol class="remains">
+    <li>
+      <strong>責任を引き受けること</strong>
+      <p>個人情報保護管理者、開示書の名義、賠償責任保険の被保険者、事故時に顧客へ連絡する人。<strong>いずれも法人か自然人にしか紐づきません。</strong>顧客の導入審査が本当に聞いているのは「漏れたとき誰が責任を取るか」で、そこにAIの答えはありません。AIが賢くなっても変わりません。</p>
+    </li>
+    <li>
+      <strong>資格に裏打ちされた判断</strong>
+      <p>この案件で実際に4回ありました（§5「人が決めたこと」）。AIが選択肢を並べ、<strong>選んだのは薬剤師</strong>です。規制産業では、選ぶ人に資格が要る場面があります。ここは委譲できません。</p>
+    </li>
+    <li>
+      <strong>規制当局・顧客と話すこと</strong>
+      <p>該当性相談も、施設の導入審査への対応も、相手のある交渉です。文書は生成できますが、<strong>やり取りして着地させるのは人</strong>です。</p>
+    </li>
+  </ol>
+
+  <h3>記録が成果物になる</h3>
+  <p>監査で問われるのは「安全ですか」ではなく「<strong>どうやって確かめましたか</strong>」です。この案件に残ったもの：</p>
+  <ul>
+    <li>ルールテスト16件（攻撃5件・正規操作5件を含む）</li>
+    <li>何が起きてなぜそうしたかを書いたルールのコメント</li>
+    <li><strong>未対応項目を隠さず列挙した</strong>開示書</li>
+    <li><strong>自分に不利な点を自分から挙げた</strong>該当性相談資料</li>
+  </ul>
+  <p>これは「AIを使いました」では代替できません。<strong>工程が回っていることの記録</strong>であり、それ自体が納品物です。</p>
+
+  <h3>この優位も永続しない</h3>
+  <div class="callout">
+    <p>正直に見ておくべきリスクが2つあります。<strong>プラットフォームが持っていく</strong>——BaaSが「これを使えば準拠」という形を出せば、個別の設計力の価値は下がります。<strong>保険が肩代わりする</strong>——サイバー保険が実質的に責任を引き受ける形が一般化すれば、①の重みは減ります。</p>
+  </div>
+
+  <h3>見立て</h3>
+  <p>武器になるのは「セキュリティができること」単体ではなく、<strong>専門領域 × 規制の読解 × 実装</strong> の交差です。</p>
+  <p>AIが実装の壁を壊したことで、<strong>作れる人は増えましたが、責任を負える人は増えていません。</strong>むしろ相対的に希少になっています。医療・介護のような規制領域では、ここが効きます。</p>
+  <p><strong>逆に、汎用のセキュリティコンサルとして出ると勝てません。</strong>専門領域に張り付いている前提の武器です。新規プロジェクトの領域を選ぶとき、この点を優先してください。</p>
+</section>
+
+<section>
+  <h2><span class="n">§7</span><span>新規プロジェクトの初期チェックリスト</span></h2>
 
   <div class="phase">
     <div class="phase-head"><span class="step">企画</span><h3>コードを書く前</h3></div>
@@ -457,7 +519,7 @@ curl -s https://&lt;site&gt;/&lt;その名前&gt; | grep -c 'localhost'</code></
 </section>
 
 <section>
-  <h2><span class="n">§7</span><span>持ち出せる資産</span></h2>
+  <h2><span class="n">§8</span><span>持ち出せる資産</span></h2>
   <div class="scroll"><table>
     <thead><tr><th>ファイル</th><th>内容</th></tr></thead>
     <tbody>
@@ -473,7 +535,7 @@ curl -s https://&lt;site&gt;/&lt;その名前&gt; | grep -c 'localhost'</code></
 </section>
 
 <section>
-  <h2><span class="n">§8</span><span>Coworkで続けるときの前提</span></h2>
+  <h2><span class="n">§9</span><span>Coworkで続けるときの前提</span></h2>
   <ul>
     <li>ファーマケアは<strong>公開リポジトリ</strong>（2026-08-10から公開）。特許は取らない判断</li>
     <li>本番は Firebase（<code>asia-northeast1</code>）＋ Cloud Run</li>
