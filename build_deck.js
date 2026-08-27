@@ -224,54 +224,61 @@ function arrow(s, x, y, w) {
     { x: 1.15, y: 6.3, w: 11.0, h: 0.85, fontFace: F.jp, fontSize: 15, bold: true, color: C.deep, valign: 'middle', margin: 0 });
 }
 
-// ══════════════════════════════════ 答えの入口 — ここから第1部の中身
+// ══════════════════════════════════ 機能一覧 — ここから答えの側
 //
-// 課題2枚を受けて「では何を作ったか」に切り替わる地点。
-// この先は登録の流れ・機能一覧・トリアージと、アプリの話が続く。
+// 課題2枚(現状・なぜ今)を受けて「では何を作ったか」に切り替わる地点。
+// この先はトリアージまでアプリの話が続き、背景には戻らない。
+//
+// このアプリの主張(ばらばらの道具をひとつにする)を実際に背負っているスライド。
+// 記録 → 相談 → 判断の支援 の順に並べる。並び順そのものが主張になる。
+// 服薬記録・バイタルと家族共有は、3枚目で「既存サービスに無い」と言った当の中身なので、
+// ここに無いと主張が宙に浮く。4列2段にしてでも入れる。
 {
   const s = light();
-  heading(s, 'つなぐと、その人に合わせられる',
-    '同じ画面に薬と体調があるから、一般論ではなく目の前の人の話にできる');
+  heading(s, '日々の記録から、判断の支援まで',
+    '記録する・相談する・判断を助ける。ばらばらだったものが、ひとつの画面の中でつながります');
 
-  const steps = [
-    ['1', '施設が記録する',
-     '服薬の実施、血圧・体温・SpO₂。\nいつも職員がつけている記録を、\nそのまま入れる。'],
-    ['2', '薬剤師に相談する',
-     '電話と違い、何の薬の話かを\n説明し直さなくていい。\nやり取りは記録として残る。'],
-    ['3', 'その人に合わせて返す',
-     '腎機能・肝機能・年齢を見て\n注意点を出し分ける。\n症状からは、受診かOTCかの\n目安を出す。'],
+  const feats = [
+    ['お薬手帳', 'QRコードで5秒登録。\n変更履歴も自動で残る'],
+    ['服薬記録・バイタル', '服薬の実施、血圧・体温・\nSpO₂を日々の記録として'],
+    ['チャット', '入居者ごとの相談ルーム。\n何の薬の話かが\n最初から共有されている'],
+    ['カレンダー', '薬剤師の訪問予定を\n施設側にも表示'],
+    ['服薬の注意点', '添付文書から該当箇所だけ。\n腎機能・肝機能・年齢に\n合わせて出し分ける'],
+    ['症状トリアージ', '体調不良時の対応の目安を\n3段階で提示'],
+    ['家族への共有', '処方とバイタルを\nご家族が閲覧できる'],
+    ['記録の書面出力', '保管中の記録を\nそのまま印刷できる'],
   ];
 
-  const cw = 3.733;
-  steps.forEach(([n, title, body], i) => {
-    const x = 0.8 + i * (cw + 0.25);
-    card(s, x, 2.1, cw, 2.9, C.wash);
-    badge(s, n, x + 0.3, 2.35, 0.5, C.deep, 15);
-    s.addText(title, {
-      x: x + 0.95, y: 2.38, w: cw - 1.2, h: 0.45,
-      fontFace: F.jp, fontSize: 17, bold: true, color: C.deep, margin: 0,
+  const cw = 2.7375; // (11.7 - 隙間0.25×3) ÷ 4
+  feats.forEach(([t, d], i) => {
+    const col = i % 4, row = Math.floor(i / 4);
+    const x = 0.8 + col * (cw + 0.25), y = 2.1 + row * 2.35;
+    card(s, x, y, cw, 2.15, C.wash);
+    // ⑤服薬の注意点 と ⑥症状トリアージ だけがAIを使う機能なので、その2つを差し色にする
+    const isAi = i === 4 || i === 5;
+    badge(s, String(i + 1), x + 0.24, y + 0.22, 0.44, isAi ? C.amber : C.mid, T.small);
+    s.addText(t, {
+      x: x + 0.22, y: y + 0.76, w: cw - 0.35, h: 0.38,
+      fontFace: F.jp, fontSize: 15, bold: true, color: C.deep, margin: 0,
     });
-    s.addText(body, {
-      x: x + 0.3, y: 2.98, w: cw - 0.5, h: 1.7,
-      fontFace: F.jp, fontSize: 13.5, color: C.ink, margin: 0, lineSpacingMultiple: 1.25,
+    s.addText(d, {
+      x: x + 0.22, y: y + 1.18, w: cw - 0.3, h: 0.85,
+      fontFace: F.jp, fontSize: 12, color: C.inkSub, margin: 0, lineSpacingMultiple: 1.2,
     });
-    if (i < 2) arrow(s, x + cw + 0.02, 3.45, 0.2);
   });
 
-  s.addText('ここが既存サービスとの違い', {
-    x: 0.8, y: 5.3, w: 11.7, h: 0.4, fontFace: F.jp, fontSize: 13, bold: true, color: C.accentLabel, margin: 0,
+  s.addText('⑤⑥はAIを使う機能', {
+    x: 0.8, y: 6.68, w: 6, h: 0.32, fontFace: F.jp, fontSize: T.small, bold: true, color: C.amber, margin: 0,
   });
-  const diffs = [
-    'バイタルが薬の話とつながっている — 「血圧が下がってきたので降圧薬を見直しては」という会話が、数字を見ながらできる',
-    '症状が出たときの入口がある — 受診すべきか、市販薬で様子を見てよいかの目安を、危険な兆候の有無から出す',
-  ];
-  diffs.forEach((t, i) => {
-    s.addShape(pres.ShapeType.rect, { x: 0.8, y: 5.82 + i * 0.6, w: 0.04, h: 0.42, fill: { color: C.amber }, line: { color: C.amber } });
-    s.addText(t, { x: 1.05, y: 5.78 + i * 0.6, w: 11.4, h: 0.5, fontFace: F.jp, fontSize: 14, color: C.ink, margin: 0 });
+  s.addText('②と⑤がつながっているのがこのアプリの要。「血圧が下がってきたので降圧薬を見直しては」という相談が、数字を見ながらできます。', {
+    x: 0.8, y: 7.0, w: 11.7, h: 0.35, fontFace: F.jp, fontSize: T.small, color: C.ink, margin: 0,
   });
 }
 
 // ══════════════════════════════════ 登録の流れ
+//
+// 機能一覧のあと。何ができるか分からないうちに手順を見せても入ってこない。
+// 後半のロール表は、機能一覧の⑦家族への共有を受ける位置でもある。
 {
   const s = light();
   heading(s, '施設をつくり、招待コードでつながる');
@@ -307,40 +314,6 @@ function arrow(s, x, y, w) {
     const x = 1.15 + i * 3.8;
     s.addText(r, { x, y: 5.5, w: 3.6, h: 0.35, fontFace: F.jp, fontSize: T.body, bold: true, color: C.mid, margin: 0 });
     s.addText(d, { x, y: 5.9, w: 3.65, h: 0.45, fontFace: F.jp, fontSize: T.small, color: C.inkSub, margin: 0 });
-  });
-}
-
-// ══════════════════════════════════ 機能一覧
-{
-  const s = light();
-  heading(s, '日々の記録から、判断の支援まで');
-
-  const feats = [
-    ['お薬手帳', 'QRコードで5秒登録\n変更履歴も自動で記録'],
-    ['カレンダー', '薬剤師の訪問予定を\n施設側にも表示'],
-    ['チャット', '患者ごとの相談ルーム\nリアルタイムで反映'],
-    ['服薬の注意点', '添付文書から\n該当箇所だけを提示'],
-    ['症状トリアージ', '体調不良時の対応の目安\nを3段階で提示'],
-    ['記録の書面出力', '保管中の記録を\nそのまま印刷できる'],
-  ];
-  feats.forEach(([t, d], i) => {
-    const col = i % 3, row = Math.floor(i / 3);
-    const x = 0.8 + col * 4.05, y = 2.1 + row * 2.35;
-    card(s, x, y, 3.75, 2.15, C.wash);
-    // ④服薬の注意点 と ⑤症状トリアージ だけがAIを使う機能なので、その2つを差し色にする
-    const isAi = i === 3 || i === 4;
-    badge(s, String(i + 1), x + 0.26, y + 0.28, 0.5, isAi ? C.amber : C.mid, T.small + 1);
-    s.addText(t, {
-      x: x + 0.88, y: y + 0.3, w: 2.8, h: 0.45,
-      fontFace: F.jp, fontSize: T.cardTitle - 1, bold: true, color: C.deep, margin: 0,
-    });
-    s.addText(d, {
-      x: x + 0.28, y: y + 1.05, w: 3.25, h: 0.95,
-      fontFace: F.jp, fontSize: T.small + 1, color: C.inkSub, margin: 0, lineSpacingMultiple: 1.2,
-    });
-  });
-  s.addText('④⑤はAIを使う機能', {
-    x: 0.8, y: 6.85, w: 6, h: 0.35, fontFace: F.jp, fontSize: T.small, color: C.amber, margin: 0,
   });
 }
 
