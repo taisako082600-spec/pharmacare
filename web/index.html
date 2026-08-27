@@ -73,6 +73,120 @@
     }
   </script>
   <script>
+    // 添付文書PDFからテキストを抜き出すヘルパー(管理画面の手動登録用)。
+    //
+    // PDFはサーバーへ送らない。抽出はこのブラウザの中だけで完結し、
+    // 外へ出るのは抜き出したテキストだけにしてある。
+    //
+    // pdf.js は本体とワーカーで合わせて約1.7MBある。管理者が手動登録を開いた
+    // ときにしか要らないので、<script>で常時読み込まず、初回呼び出し時に
+    // 動的importで取りに行く。施設の共用端末は非力なので、全利用者の
+    // 読み込み時間をこれで延ばしたくない。
+    (function () {
+      var pdfjsPromise = null;
+
+      function loadPdfJs() {
+        if (!pdfjsPromise) {
+          pdfjsPromise = import('./pdf.min.mjs').then(function (lib) {
+            lib.GlobalWorkerOptions.workerSrc = './pdf.worker.min.mjs';
+            return lib;
+          });
+        }
+        return pdfjsPromise;
+      }
+
+      // ファイル選択から抽出までをまとめて行う。
+      // 戻り値は { fileName, text }、選択がキャンセルされた場合は null。
+      // file_picker パッケージを足さずに済ませている(依存を増やさない方針)。
+      window.pickAndExtractPdfText = function () {
+        return new Promise(function (resolve, reject) {
+          var input = document.createElement('input');
+          input.type = 'file';
+          input.accept = 'application/pdf,.pdf';
+          input.style.display = 'none';
+          document.body.appendChild(input);
+
+          function cleanup() {
+            if (input.parentNode) input.parentNode.removeChild(input);
+          }
+
+          input.addEventListener('change', function () {
+            var file = input.files && input.files[0];
+            if (!file) {
+              cleanup();
+              resolve(null);
+              return;
+            }
+            file
+              .arrayBuffer()
+              .then(function (buf) {
+                return window.extractPdfText(new Uint8Array(buf));
+              })
+              .then(function (text) {
+                cleanup();
+                resolve({ fileName: file.name, text: text });
+              })
+              .catch(function (e) {
+                cleanup();
+                reject(e);
+              });
+          });
+
+          // 選択せずに閉じた場合はchangeが飛ばないので、フォーカスが戻ったら諦める。
+          // これが無いと、キャンセルした利用者の画面が読み込み中のまま止まる。
+          window.addEventListener(
+            'focus',
+            function () {
+              setTimeout(function () {
+                if (input.parentNode && !(input.files && input.files.length)) {
+                  cleanup();
+                  resolve(null);
+                }
+              }, 500);
+            },
+            { once: true }
+          );
+
+          input.click();
+        });
+      };
+
+      // bytes: Uint8Array。戻り値はページ順に連結したプレーンテキスト。
+      //
+      // 章の分割はここではやらない。サーバー側の ChunkAttachmentDocument に
+      // 任せることで、自動取得と手動登録で分割ロジックが分かれないようにしている。
+      window.extractPdfText = function (bytes) {
+        return loadPdfJs().then(function (pdfjs) {
+          return pdfjs.getDocument({ data: bytes }).promise.then(function (doc) {
+            var pages = [];
+            for (var i = 1; i <= doc.numPages; i++) pages.push(i);
+            return Promise.all(
+              pages.map(function (n) {
+                return doc.getPage(n).then(function (page) {
+                  return page.getTextContent().then(function (content) {
+                    // 添付文書は章見出しが独立行になっている前提で分割するため、
+                    // 行の区切りを保つ必要がある。pdf.jsのitemには行末で
+                    // hasEOL が立つので、それを改行に戻す。
+                    // 単純に空白連結すると見出しが本文に埋もれ、章が1つも取れない。
+                    var out = '';
+                    content.items.forEach(function (item) {
+                      if (typeof item.str !== 'string') return;
+                      out += item.str;
+                      if (item.hasEOL) out += '\n';
+                    });
+                    return out;
+                  });
+                });
+              })
+            ).then(function (texts) {
+              return texts.join('\n');
+            });
+          });
+        });
+      };
+    })();
+  </script>
+  <script>
     // 見読性(書面作成)のためのヘルパー。
     //
     // 「医療情報を取り扱う情報システム・サービスの提供事業者における安全管理

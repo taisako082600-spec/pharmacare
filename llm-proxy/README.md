@@ -90,14 +90,25 @@ OTCトリアージフォーム（`otc_triage_form_screen.dart`）からのリク
 
 ## Flutter側との接続
 
-`lib/services/ai_drug_service.dart` はデフォルトで `http://localhost:8081` を叩く(ローカル開発用のデフォルト値、変更不要)。
-本番ビルドはCloud Run URLを`--dart-define`で上書きする(**本番URLはリポジトリに書かず、手元メモ/`.env`で管理**):
+`lib/services/ai_drug_service.dart` の `_proxyBaseUrl` は **デフォルトで本番のCloud Run URL** を指す。
+`flutter build web` をそのまま実行すれば本番向けの成果物になる。
+
+ローカルのプロキシへ向けたいときだけ上書きする:
 
 ```bash
-flutter build web --dart-define=LLM_PROXY_URL=https://<本番Cloud RunのURL>
+flutter build web --dart-define=LLM_PROXY_URL=http://localhost:8081
 ```
 
-**✅ 本番デプロイ・疎通確認済み(2026-07-20)**。本番Flutterビルドは既にこの方式でCloud Run URLを埋め込み済み。
+> **以前は逆だった(デフォルトがlocalhost、本番は`--dart-define`で注入)。**
+> 渡し忘れたビルドがそのまま本番に出て、**全端末が自分自身のlocalhostを叩いていた**
+> (2026-08-27に実機で発覚。配信中の`main.dart.js`に`localhost:8081`が3箇所、
+> Cloud RunのURLは0箇所)。画面には「プロキシに接続できません」としか出ないため、
+> AI関連機能が一度も動いていなかったことに誰も気づけなかった。
+> URL自体は秘匿情報ではない(ブラウザが直接叩く公開エンドポイントで、配信JSを開けば読める)。
+> 守っているのはIDトークン検証(`auth_middleware.go`)と許可オリジンの列挙(`cors.go`)。
+>
+> 再発防止として `deploy.js` の `assertNoDevEndpoints()` が、
+> `main.dart.js` に開発用の向き先が残っていればデプロイを中止する。
 
 プロキシに接続できない場合は、Flutter側でモック応答（服薬指導）またはレッドフラッグのみの簡易判定（トリアージ）にフォールバックする。
 

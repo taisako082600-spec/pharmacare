@@ -183,6 +183,37 @@ class AiDrugService {
     }
   }
 
+  /// 管理者専用: 添付文書のプレーンテキストを章立てに分割する。
+  /// プロキシの POST /v1/admin/parse-label-text に対応。
+  ///
+  /// PDFから抜き出したテキストを渡す用途。分割はサーバー側の
+  /// ChunkAttachmentDocument が行い、**保存はしない**（管理者が画面で確認してから保存する）。
+  /// 自動取得と同じ関数を通すことで、取り込み経路によって結果が変わらないようにしている。
+  Future<Map<String, dynamic>> adminParseLabelText({required String text}) async {
+    try {
+      final token = await _authHeaderToken();
+      final response = await http
+          .post(
+            Uri.parse('$_proxyBaseUrl/v1/admin/parse-label-text'),
+            headers: {
+              'Content-Type': 'application/json',
+              if (token != null) 'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode({'text': text}),
+          )
+          .timeout(const Duration(seconds: 30));
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      }
+      debugPrint('添付文書の分割 エラー: ${response.statusCode} ${response.body}');
+      return {'success': false, 'reason': 'サーバーエラー（${response.statusCode}）'};
+    } catch (e) {
+      debugPrint('添付文書の分割 通信エラー: $e');
+      return {'success': false, 'reason': 'プロキシに接続できません'};
+    }
+  }
+
   // 'consciousness'(意識障害)カテゴリはレッドフラッグの選択状態によらず常に受診推奨とする。
   // llm-proxy/redflag.go の alwaysReferCategories と同じ特別ルール。
   static const _alwaysReferCategories = {'consciousness'};

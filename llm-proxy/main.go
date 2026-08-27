@@ -44,6 +44,7 @@ func main() {
 	mux.HandleFunc("/v1/analyze-medication", withCORS(requireAuth(firebaseProjectID, srv.analyzeMedicationHandler)))
 	mux.HandleFunc("/v1/triage", withCORS(requireAuth(firebaseProjectID, srv.triageHandler)))
 	mux.HandleFunc("/v1/admin/fetch-drug-label", withCORS(requireAuth(firebaseProjectID, srv.adminFetchDrugLabelHandler)))
+	mux.HandleFunc("/v1/admin/parse-label-text", withCORS(requireAuth(firebaseProjectID, srv.adminParseLabelTextHandler)))
 	mux.HandleFunc("/healthz", srv.healthHandler)
 	// Cloud Run は末尾が "z" のパスを予約URLパスとして扱い、エッジ層で処理するため
 	// コンテナに到達しない(公式ドキュメント「Cloud Run の既知の問題」に記載。
