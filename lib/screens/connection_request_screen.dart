@@ -1,6 +1,7 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user_model.dart';
+import '../services/invite_code.dart';
 
 // 薬剤師用：施設を検索して申請する画面
 class PharmacistConnectionScreen extends StatefulWidget {
@@ -27,8 +28,15 @@ class _PharmacistConnectionScreenState extends State<PharmacistConnectionScreen>
   }
 
   // 招待コードで施設と連携
-  Future<void> _connectWithCode(String code) async {
-    if (code.length != 6) return;
+  Future<void> _connectWithCode(String rawCode) async {
+    // 表示は ABCD-EFGH と区切るので、ハイフン・小文字・全角を吸収してから照合する。
+    final code = InviteCode.normalize(rawCode);
+    if (!InviteCode.isPlausible(code)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('コードの形式が違います'), backgroundColor: Colors.red),
+      );
+      return;
+    }
     final now = Timestamp.now();
 
     // ドキュメントIDがコード文字列そのものなので、クエリではなくID指定で引く。
@@ -200,20 +208,22 @@ class _InviteCodeInputTabState extends State<_InviteCodeInputTab> {
           const Text('招待コードで連携', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
           const Text(
-            '施設管理者から受け取った\n6桁のコードを入力してください',
+            '施設管理者から受け取ったコードを入力してください',
             textAlign: TextAlign.center,
             style: TextStyle(color: Colors.black54, height: 1.6),
           ),
           const SizedBox(height: 32),
           TextField(
             controller: _controller,
-            keyboardType: TextInputType.number,
-            maxLength: 6,
+            // 英数字混在になったので数字キーボードにしない。
+            // 大文字で保持するが、小文字で打たれても normalize が吸収する。
+            textCapitalization: TextCapitalization.characters,
+            maxLength: InviteCode.inputMaxLength,
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, letterSpacing: 12),
+            style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 6),
             decoration: InputDecoration(
-              hintText: '000000',
-              hintStyle: TextStyle(color: Colors.grey.shade300, fontSize: 32, letterSpacing: 12),
+              hintText: 'ABCD-EFGH',
+              hintStyle: TextStyle(color: Colors.grey.shade300, fontSize: 28, letterSpacing: 6),
               counterText: '',
               filled: true,
               fillColor: Colors.white,

@@ -1,9 +1,9 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/auth_service.dart';
+import '../services/invite_code.dart';
 import '../services/password_policy.dart';
 import '../models/user_model.dart';
 import 'main_shell.dart';
@@ -137,7 +137,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         });
 
         // 招待コードを自動発行
-        final code = _generateCode();
+        final code = InviteCode.generate();
         await FirebaseFirestore.instance.collection('invite_codes').doc(code).set({
           'code': code,
           'facilityId': facilityId,
@@ -176,7 +176,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
                   decoration: BoxDecoration(color: const Color(0xFFE3F2FD), borderRadius: BorderRadius.circular(12)),
-                  child: Text(code, style: const TextStyle(fontSize: 36, fontWeight: FontWeight.bold, letterSpacing: 10, color: Color(0xFF1976D2))),
+                  child: Text(InviteCode.formatForDisplay(code),
+                      style: const TextStyle(fontSize: 30, fontWeight: FontWeight.bold, letterSpacing: 3, color: Color(0xFF1976D2))),
                 ),
                 const SizedBox(height: 8),
                 const Text('このコードを同僚スタッフに共有してください。\n有効期限：24時間', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: Colors.black54)),
@@ -206,7 +207,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         facilityId = _selectedFacilityId ?? '';
         facilityName = _selectedFacilityName ?? '';
 
-        final inviteCode = _inviteCodeController.text.trim();
+        final inviteCode = InviteCode.normalize(_inviteCodeController.text);
 
         final cred = await _authService.signUp(
           email: email,
@@ -316,15 +317,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  String _generateCode() {
-    final rand = Random.secure();
-    return List.generate(6, (_) => rand.nextInt(10)).join();
-  }
-
   Future<void> _verifyCode() async {
-    final code = _inviteCodeController.text.trim();
-    if (code.length != 6) {
-      setState(() => _error = '6桁のコードを入力してください');
+    // 表示は ABCD-EFGH と区切っているので、ハイフンごと写されることを前提に正規化する。
+    final code = InviteCode.normalize(_inviteCodeController.text);
+    if (!InviteCode.isPlausible(code)) {
+      setState(() => _error = '招待コードの形式が違います。受け取ったとおりに入力してください');
       return;
     }
     setState(() { _loading = true; _error = null; });
@@ -637,11 +634,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
             Expanded(
               child: TextField(
                 controller: _inviteCodeController,
-                keyboardType: TextInputType.number,
-                maxLength: 6,
+                // 英数字混在になったので数字キーボードにしない。
+                // 小文字・ハイフン・全角は InviteCode.normalize が吸収する。
+                textCapitalization: TextCapitalization.characters,
+                maxLength: InviteCode.inputMaxLength,
                 enabled: !_codeVerified,
                 decoration: InputDecoration(
-                  labelText: '6桁の招待コード',
+                  labelText: '招待コード（例 ABCD-EFGH）',
                   prefixIcon: const Icon(Icons.lock_outline),
                   counterText: '',
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),

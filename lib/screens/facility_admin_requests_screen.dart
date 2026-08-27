@@ -1,21 +1,15 @@
-﻿import 'dart:math';
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user_model.dart';
+import '../services/invite_code.dart';
 
 class FacilityAdminRequestsScreen extends StatelessWidget {
   final UserModel user;
   const FacilityAdminRequestsScreen({super.key, required this.user});
 
-  // 6桁コード生成
-  String _generateCode() {
-    final rand = Random.secure();
-    return (100000 + rand.nextInt(900000)).toString();
-  }
-
   Future<void> _issueInviteCode(BuildContext context) async {
-    final code = _generateCode();
+    final code = InviteCode.generate();
     final expiresAt = DateTime.now().add(const Duration(minutes: 30));
 
     // ドキュメントIDはコード文字列そのもの。firestore.rules の users が
@@ -46,8 +40,8 @@ class FacilityAdminRequestsScreen extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
-                code,
-                style: const TextStyle(fontSize: 36, fontWeight: FontWeight.bold, letterSpacing: 8, color: Color(0xFF1976D2)),
+                InviteCode.formatForDisplay(code),
+                style: const TextStyle(fontSize: 30, fontWeight: FontWeight.bold, letterSpacing: 3, color: Color(0xFF1976D2)),
               ),
             ),
             const SizedBox(height: 12),
@@ -247,8 +241,8 @@ class _InviteCodeTab extends StatelessWidget {
                     decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10)),
                     child: Row(
                       children: [
-                        Text(data['code'] ?? '', style: TextStyle(
-                          fontSize: 22, fontWeight: FontWeight.bold, letterSpacing: 4,
+                        Text(InviteCode.formatForDisplay(data['code'] ?? ''), style: TextStyle(
+                          fontSize: 19, fontWeight: FontWeight.bold, letterSpacing: 2,
                           color: isExpired || isUsed ? Colors.grey : const Color(0xFF1976D2),
                         )),
                         const Spacer(),

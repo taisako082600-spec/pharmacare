@@ -1,8 +1,8 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/patient_model.dart';
+import '../services/invite_code.dart';
 import '../models/user_model.dart';
 import '../services/ai_drug_service.dart';
 import '../services/audit_service.dart';
@@ -139,8 +139,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
       code = existing.docs.first.get('code') as String;
     } else {
       // 新規発行
-      final rand = Random.secure();
-      code = List.generate(6, (_) => rand.nextInt(10)).join();
+      code = InviteCode.generate();
       // ドキュメントIDはコード文字列そのもの(firestore.rules が get() で照合するため)。
       await FirebaseFirestore.instance.collection('invite_codes').doc(code).set({
         'code': code,
@@ -176,7 +175,8 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
             Container(
               padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
               decoration: BoxDecoration(color: AppTheme.canvas, borderRadius: BorderRadius.circular(12)),
-              child: Text(code, style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold, letterSpacing: 12, color: AppTheme.accentDeep)),
+              child: Text(InviteCode.formatForDisplay(code),
+                  style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, letterSpacing: 4, color: AppTheme.accentDeep)),
             ),
             const SizedBox(height: 8),
             const Text('有効期限: 30日間', style: TextStyle(fontSize: 12, color: Colors.black38)),
