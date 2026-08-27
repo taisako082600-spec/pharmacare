@@ -697,6 +697,84 @@ explainerSlide(
   'この3つは、紙のカルテで当たり前に成り立っていたことを、電子でも同じ水準にするための決まりです。',
 );
 
+// ══════════════════════════════════ 保管先と、その理由
+//
+// 「記録に残します」「保存します」だけでは、預ける側は判断できない。
+// 施設が知りたいのは、実際にどこの何に入っていて、なぜそこなのか。
+// 値はすべて本番の設定を確認して書いている(リージョン・PITR・削除保護)。
+{
+  const s = light();
+  heading(s, 'どこに置いて、なぜそこなのか',
+    '「記録します」「保存します」の中身を、保管先まで開きます');
+
+  const rows = [
+    ['入居者の記録', '服薬・バイタル・アレルギー・やり取り',
+     'Cloud Firestore\n東京（asia-northeast1）',
+     '国内法の執行が及ぶ範囲に置くことが要求事項です。\n海外だと、いざというとき日本の法律が届きません。'],
+    ['監査ログ', '誰が・いつ・何を見たか',
+     '同じ東京リージョン\n（専用の領域）',
+     '書き足すことしかできない設定にしています。\n運営者の手でも、後から書き換え・削除ができません。'],
+    ['アプリの画面', 'ブラウザに配信される本体',
+     'Firebase Hosting\n全通信を HTTPS に強制',
+     '施設の端末と保管先のあいだを暗号化します。\n途中の経路で中身を読まれることはありません。'],
+    ['AIに送る内容', '説明文を組み立てる分だけ',
+     '自社のプロキシ経由\nCloud Run 東京',
+     '氏名・生年月日・居室番号は送りません。送るのは症状と\n薬剤名だけです。判定自体はAIではなくルールが決めます。'],
+  ];
+
+  const top = 1.95;
+  const rowH = 0.82;
+  [['何を', 0.8, 3.0], ['どこに', 4.0, 3.3], ['なぜ、そこなのか', 7.45, 5.05]].forEach(([label, x, w]) => {
+    s.addText(label, {
+      x: x + 0.3, y: top, w, h: 0.32,
+      fontFace: F.jp, fontSize: T.small, bold: true, color: C.inkSub, margin: 0,
+    });
+  });
+
+  rows.forEach(([what, detail, where, why], i) => {
+    const y = top + 0.4 + i * rowH;
+    card(s, 0.8, y, 11.7, rowH - 0.1, i % 2 === 0 ? C.wash : 'FFFFFF', 'DCE6E4');
+
+    s.addText(what, {
+      x: 1.1, y: y + 0.1, w: 2.9, h: 0.3,
+      fontFace: F.jp, fontSize: T.body, bold: true, color: C.deep, margin: 0,
+    });
+    s.addText(detail, {
+      x: 1.1, y: y + 0.4, w: 3.0, h: 0.3,
+      fontFace: F.jp, fontSize: 11, color: C.inkSub, margin: 0,
+    });
+    s.addText(where, {
+      x: 4.3, y: y + 0.13, w: 3.2, h: 0.6,
+      fontFace: F.jp, fontSize: 12, bold: true, color: C.ink, margin: 0, lineSpacingMultiple: 1.15,
+    });
+    s.addText(why, {
+      x: 7.75, y: y + 0.13, w: 4.9, h: 0.6,
+      fontFace: F.jp, fontSize: 12, color: C.ink, margin: 0, lineSpacingMultiple: 1.15,
+    });
+  });
+
+  // 安全性の担保。上の表が「置き場所」なら、こちらは「失われない・読まれない」根拠。
+  card(s, 0.8, 5.68, 11.7, 1.1, C.deep);
+  s.addText('消えないこと', {
+    x: 1.15, y: 5.8, w: 2.2, h: 0.32, fontFace: F.jp, fontSize: T.small, bold: true, color: C.amber, margin: 0,
+  });
+  s.addText('過去7日間の任意の時点まで戻せます。データベースそのものの削除も、設定で禁止しています。', {
+    x: 3.0, y: 5.8, w: 9.3, h: 0.32, fontFace: F.jp, fontSize: 12.5, color: 'FFFFFF', margin: 0,
+  });
+  s.addText('読まれないこと', {
+    x: 1.15, y: 6.26, w: 2.2, h: 0.32, fontFace: F.jp, fontSize: T.small, bold: true, color: C.amber, margin: 0,
+  });
+  s.addText('保存時は Google Cloud の既定で暗号化。基盤は ISO/IEC 27001・27017・27018 と SOC 2/3 を取得しています。', {
+    x: 3.0, y: 6.26, w: 9.3, h: 0.32, fontFace: F.jp, fontSize: 12.5, color: 'FFFFFF', margin: 0,
+  });
+
+  s.addText('※ 基盤事業者は Google Cloud Japan ですが、米国法の適用可能性は完全には排除できません。当社自身のPマーク／ISMSも未取得です（次ページ）。', {
+    x: 0.8, y: 6.9, w: 11.7, h: 0.4,
+    fontFace: F.jp, fontSize: T.small - 1, color: C.inkSub, italic: true, margin: 0,
+  });
+  s.addNotes('「東京に置いています」で終わらせない。なぜ東京でなければならないかまで言えると、預ける側は判断できる。');
+}
+
 // ══════════════════════════════════ 未対応（正直に出す）
 {
   const s = light();
