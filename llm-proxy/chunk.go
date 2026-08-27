@@ -16,6 +16,8 @@ var newFormatSectionCategories = map[string]string{
 	"9.8":  "elderly",
 	"8":    "important_precautions",
 	"11.1": "major_adverse_reactions",
+	// 11.2「その他の副作用」は取り込まない。理由は pmda_html_extract.go の
+	// pmdaSectionIDs 直後のコメントを参照(表構造が失われるため)。
 }
 
 // 新様式の章見出しパターン: 行頭が "9.2" や "11.1" のような番号で始まり、
