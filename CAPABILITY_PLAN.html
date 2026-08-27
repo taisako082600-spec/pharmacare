@@ -1,0 +1,375 @@
+<title>削られない側に立つ計画</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@600;800&family=Noto+Sans+JP:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+
+<style>
+  :root {
+    --ground: #F3F6F4;
+    --surface: #FFFFFF;
+    --sunken: #E7ECE8;
+    --ink: #121A18;
+    --ink-soft: #4F5C58;
+    --ink-faint: #7E8B86;
+    --rule: #D5DEDA;
+    --rule-strong: #B8C5C0;
+    --structure: #1F4D3D;
+
+    --durable: #1F6B4F;
+    --durable-wash: #E3F0E9;
+    --erodes: #A05B14;
+    --erodes-wash: #F7EDE0;
+
+    --display: "Shippori Mincho B1", "Yu Mincho", serif;
+    --sans: "Noto Sans JP", "Yu Gothic", "Hiragino Sans", sans-serif;
+    --mono: "IBM Plex Mono", Consolas, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #101614;
+      --surface: #18201D;
+      --sunken: #1F2825;
+      --ink: #E3E8E6;
+      --ink-soft: #9EACA7;
+      --ink-faint: #77857F;
+      --rule: #2A3531;
+      --rule-strong: #3C4A45;
+      --structure: #7FC0A4;
+      --durable: #6FBF97;
+      --durable-wash: #16281F;
+      --erodes: #D69B57;
+      --erodes-wash: #2A2116;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #101614;
+    --surface: #18201D;
+    --sunken: #1F2825;
+    --ink: #E3E8E6;
+    --ink-soft: #9EACA7;
+    --ink-faint: #77857F;
+    --rule: #2A3531;
+    --rule-strong: #3C4A45;
+    --structure: #7FC0A4;
+    --durable: #6FBF97;
+    --durable-wash: #16281F;
+    --erodes: #D69B57;
+    --erodes-wash: #2A2116;
+  }
+
+  body {
+    background: var(--ground); color: var(--ink);
+    font-family: var(--sans); font-size: 15px; line-height: 1.9;
+    margin: 0; padding: 0 20px 96px; -webkit-font-smoothing: antialiased;
+  }
+  .doc { max-width: 800px; margin: 0 auto; }
+
+  header.top { padding: 78px 0 34px; border-bottom: 2px solid var(--structure); }
+  .eyebrow {
+    font-family: var(--mono); font-size: 11.5px; letter-spacing: 0.12em;
+    color: var(--structure); margin: 0 0 20px;
+  }
+  h1 {
+    font-family: var(--display); font-weight: 800;
+    font-size: clamp(30px, 5.6vw, 46px); line-height: 1.35;
+    margin: 0 0 20px; text-wrap: balance;
+  }
+  .standfirst {
+    font-size: 16px; color: var(--ink-soft); max-width: 58ch; margin: 0;
+  }
+
+  section { margin-top: 58px; }
+  h2 {
+    font-family: var(--display); font-weight: 600; font-size: 24px;
+    line-height: 1.5; margin: 0 0 16px; text-wrap: balance;
+  }
+  h3 { font-size: 15.5px; font-weight: 700; color: var(--structure); margin: 28px 0 8px; }
+  p { margin: 14px 0; }
+  a { color: var(--durable); text-underline-offset: 3px; }
+  a:focus-visible { outline: 2px solid var(--durable); outline-offset: 3px; }
+  code {
+    font-family: var(--mono); font-size: 0.86em; background: var(--sunken);
+    padding: 1px 5px; border-radius: 3px;
+  }
+  ul, ol { margin: 14px 0; padding-left: 1.35em; }
+  li { margin: 7px 0; }
+  li::marker { color: var(--structure); }
+
+  /* ── 侵食の順序図 ───────────────────── */
+  .erosion {
+    background: var(--surface); border: 1px solid var(--rule);
+    border-radius: 10px; padding: 22px; margin: 24px 0;
+  }
+  .erosion-axis {
+    display: flex; justify-content: space-between;
+    font-family: var(--mono); font-size: 11px; color: var(--ink-faint);
+    margin-bottom: 10px;
+  }
+  .erosion-bar {
+    display: grid; grid-template-columns: 1fr auto 1fr; gap: 0;
+    align-items: stretch; border-radius: 6px; overflow: hidden;
+  }
+  .erosion-side { padding: 14px 16px; font-size: 13px; line-height: 1.75; }
+  .erosion-side ul { margin: 6px 0 0; padding-left: 1.1em; }
+  .erosion-side li { margin: 2px 0; }
+  .side-gone { background: var(--erodes-wash); }
+  .side-gone b { color: var(--erodes); }
+  .side-kept { background: var(--durable-wash); }
+  .side-kept b { color: var(--durable); }
+  .erosion-divider { width: 3px; background: var(--structure); }
+
+  /* ── 段階（時間軸なので縦のレールで表す） ── */
+  .phases { position: relative; margin: 28px 0; padding-left: 34px; }
+  .phases::before {
+    content: ""; position: absolute; left: 11px; top: 10px; bottom: 10px;
+    width: 2px; background: var(--rule-strong);
+  }
+  .phase { position: relative; margin-bottom: 26px; }
+  .phase::before {
+    content: ""; position: absolute; left: -29px; top: 20px;
+    width: 12px; height: 12px; border-radius: 50%;
+    background: var(--structure); border: 3px solid var(--ground);
+  }
+  .phase-card {
+    background: var(--surface); border: 1px solid var(--rule);
+    border-radius: 10px; padding: 20px 24px;
+  }
+  .phase-when {
+    font-family: var(--mono); font-size: 11.5px; letter-spacing: 0.06em;
+    color: var(--structure); margin: 0 0 4px;
+  }
+  .phase-card h3 {
+    font-family: var(--display); font-size: 20px; font-weight: 600;
+    color: var(--ink); margin: 0 0 14px;
+  }
+  .facts {
+    display: flex; flex-wrap: wrap; gap: 8px 22px; margin: 0 0 14px;
+    padding-bottom: 14px; border-bottom: 1px solid var(--rule);
+    font-size: 12.5px;
+  }
+  .facts div { display: flex; gap: 8px; align-items: baseline; }
+  .facts dt { color: var(--ink-faint); }
+  .facts dd { margin: 0; font-family: var(--mono); font-size: 12px; }
+  .tag {
+    font-size: 11px; font-weight: 700; padding: 2px 9px;
+    border-radius: 999px; border: 1px solid currentColor;
+    font-family: var(--sans);
+  }
+  .t-durable { color: var(--durable); }
+  .t-erodes { color: var(--erodes); }
+  .phase-card p { margin: 12px 0; font-size: 14.5px; }
+  .phase-card p:last-child { margin-bottom: 0; }
+
+  .note {
+    background: var(--sunken); border-left: 3px solid var(--structure);
+    padding: 14px 18px; margin: 16px 0; font-size: 14px; border-radius: 0 6px 6px 0;
+  }
+  .note p { margin: 0; }
+
+  .scroll { overflow-x: auto; margin: 20px 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th, td {
+    text-align: left; padding: 10px 14px; vertical-align: top;
+    border-bottom: 1px solid var(--rule);
+  }
+  thead th {
+    font-size: 11.5px; letter-spacing: 0.05em; color: var(--ink-faint);
+    border-bottom: 1px solid var(--rule-strong); white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  td.cap { white-space: nowrap; }
+
+  ol.next { counter-reset: nx; list-style: none; padding: 0; }
+  ol.next li {
+    counter-increment: nx; display: grid; grid-template-columns: 30px 1fr;
+    gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--rule);
+    font-size: 14.5px;
+  }
+  ol.next li:last-child { border-bottom: none; }
+  ol.next li::before {
+    content: counter(nx); font-family: var(--mono); font-size: 14px;
+    color: var(--structure); padding-top: 2px;
+  }
+
+  footer {
+    margin-top: 64px; padding-top: 20px; border-top: 1px solid var(--rule);
+    font-size: 12.5px; color: var(--ink-faint);
+  }
+
+  @media (max-width: 600px) {
+    body { font-size: 14.5px; padding: 0 16px 64px; }
+    header.top { padding-top: 48px; }
+    .erosion-bar { grid-template-columns: 1fr; }
+    .erosion-divider { width: auto; height: 3px; }
+    .phases { padding-left: 26px; }
+    .phase::before { left: -21px; }
+    .phase-card { padding: 16px 18px; }
+  }
+</style>
+
+<div class="doc">
+
+<header class="top">
+  <p class="eyebrow">Capability Plan</p>
+  <h1>削られない側に立つ計画</h1>
+  <p class="standfirst">セキュリティマネジメントを自力でできるようになる。ただし、世の中がそれもAIに任せる流れになったときに、何が残るのかを織り込んだうえで。</p>
+</header>
+
+<section>
+  <h2>核心：AIが侵食するのは「実施」であって「資格」と「審査」ではない</h2>
+
+  <div class="erosion">
+    <div class="erosion-axis"><span>早く削られる</span><span>制度が守っている</span></div>
+    <div class="erosion-bar">
+      <div class="erosion-side side-gone">
+        <b>実施</b>
+        <ul>
+          <li>脆弱性の発見</li>
+          <li>コードレビュー</li>
+          <li>規程・文書の作成</li>
+          <li>ログの点検</li>
+        </ul>
+      </div>
+      <div class="erosion-divider"></div>
+      <div class="erosion-side side-kept">
+        <b>資格・立場</b>
+        <ul>
+          <li>資格の保有</li>
+          <li>審査する立場</li>
+          <li>責任の引受</li>
+          <li>当局・顧客との交渉</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <p><strong>重要な非対称性：</strong>作る側が自動化されるほど、<strong>検証と保証の需要は減らずに増えます。</strong>誰でも作れる＝品質が担保されていないものが増える、ということだからです。</p>
+
+  <p>したがって計画の骨は <strong>「作る側から、審査・保証する側へ足場を伸ばす」</strong>。作る力を捨てるのではなく、<strong>作れることを前提に、保証できる立場を取りに行く</strong>という組み立てです。</p>
+</section>
+
+<section>
+  <h2>段階</h2>
+
+  <div class="phases">
+
+    <div class="phase">
+      <div class="phase-card">
+        <p class="phase-when">段階 0 ／ いま〜3ヶ月</p>
+        <h3>足場の確認 — 医療情報技師</h3>
+        <dl class="facts">
+          <div><dt>費用</dt><dd>受験料のみ</dd></div>
+          <div><dt>合格率</dt><dd>約 37%</dd></div>
+          <div><span class="tag t-durable">AI耐性 高</span></div>
+        </dl>
+        <p><strong>薬剤師であることが直接効く唯一の資格です。</strong>試験は「情報処理技術／医学・医療／医療情報システム」の3分野で、<strong>医学・医療は既に持っています</strong>。簡単ではありませんが、3分の1を埋めた状態から始められます。</p>
+        <p>並行して<strong>実務の証跡を作り続ける</strong>。ファーマケアで既にあるもの — ルールテスト16件、未対応を隠さない開示書、自分に不利な点を自分から挙げた相談資料。<strong>これは資格より説得力があります。</strong></p>
+      </div>
+    </div>
+
+    <div class="phase">
+      <div class="phase-card">
+        <p class="phase-when">段階 1 ／ 〜1年</p>
+        <h3>名乗れる状態になる — 情報処理安全確保支援士</h3>
+        <dl class="facts">
+          <div><dt>維持費</dt><dd>3年で 11.5〜15万円</dd></div>
+          <div><dt>義務</dt><dd>年1回＋3年に1回の講習</dd></div>
+          <div><span class="tag t-durable">AI耐性 高</span></div>
+        </dl>
+        <p>国家資格・名称独占。<strong>維持費の重さは、そのまま参入障壁でもあります。</strong>払い続けられる人しか残らない。「AIで代替」が効かない種類のコストです。</p>
+        <div class="note">
+          <p><strong>合格しても登録は任意です。</strong>案件の見通しが立たないうちに登録すると維持費だけが出ていくので、<strong>合格を先に取り、登録は受注が見えてから</strong>で構いません。</p>
+        </div>
+        <p>補助的に <strong>個人情報保護士</strong>。軽く、規程や開示書を書くときの土台になります。</p>
+      </div>
+    </div>
+
+    <div class="phase">
+      <div class="phase-card">
+        <p class="phase-when">段階 2 ／ 1〜3年　★ 本丸</p>
+        <h3>審査する側に回る</h3>
+        <dl class="facts">
+          <div><dt>ISMS審査員研修</dt><dd>20〜40万円程度</dd></div>
+          <div><span class="tag t-durable">AI耐性 最高</span></div>
+        </dl>
+        <p><strong>ここがAI侵食への本丸のヘッジです。</strong>作る側が自動化されても審査は残ります。むしろ、自動生成されたものが増えるほど「これは本当に大丈夫か」を判断する仕事は増えます。<strong>審査員資格は人に付与され、判定の責任を負う立場</strong>なので、置き換わりません。</p>
+        <p><strong>上級医療情報技師</strong>は、試験の目的そのものが「医療情報のセキュリティ管理を主導できること」の評価です。狙う位置に最も近い。ただし<strong>医療情報技師の保有＋実務5年</strong>が要件なので長期戦になります。</p>
+        <div class="note">
+          <p><strong>要確認：</strong>薬局での医療情報システム運用や、自分のサービス提供が実務経験に算入されるか。育成部会に問い合わせる価値があります。算入されるなら到達時期が読めます。</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<section>
+  <h2>資格と別軸で、並行して進めること</h2>
+  <p>資格があっても、これが無いと受注できません。</p>
+  <ul>
+    <li><strong>規程類</strong> — 基本方針、取扱規程、委託先管理、事故対応</li>
+    <li><strong>内部監査の委託先を確保する</strong> — 1人だと独立性が保てない。<strong>個人事業主の最大の詰まりどころ</strong></li>
+    <li><strong>賠償責任保険</strong> — 未加入だと審査で止まる</li>
+    <li><strong>導入審査を実際に受ける</strong> — 1件通せば、以降の再現性が段違いになる</li>
+  </ul>
+</section>
+
+<section>
+  <h2>何がいつ削られるか</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>能力</th><th>AI耐性</th><th>理由</th><th>投資判断</th></tr></thead>
+    <tbody>
+      <tr><td>脆弱性を見つける</td><td class="cap"><span class="tag t-erodes">低</span></td><td>網羅的な読解はAIの得意領域</td><td><strong>投資しない</strong></td></tr>
+      <tr><td>規程・文書を書く</td><td class="cap"><span class="tag t-erodes">低</span></td><td>生成できる</td><td>投資しない</td></tr>
+      <tr><td>ログを点検する</td><td class="cap"><span class="tag t-erodes">低</span></td><td>自動化が進む</td><td>投資しない</td></tr>
+      <tr><td><strong>資格の保有</strong></td><td class="cap"><span class="tag t-durable">高</span></td><td>人に付与され、維持義務も人に課される</td><td><strong>投資する</strong></td></tr>
+      <tr><td><strong>審査する立場</strong></td><td class="cap"><span class="tag t-durable">最高</span></td><td>判定に責任が伴う</td><td><strong>投資する</strong></td></tr>
+      <tr><td><strong>責任を引き受ける</strong></td><td class="cap"><span class="tag t-durable">最高</span></td><td>法人か自然人にしか紐づかない</td><td><strong>投資する</strong></td></tr>
+      <tr><td><strong>当局と話す</strong></td><td class="cap"><span class="tag t-durable">高</span></td><td>相手のある交渉</td><td>投資する</td></tr>
+      <tr><td><strong>薬学の知識</strong></td><td class="cap"><span class="tag t-durable">高</span></td><td>資格に裏打ちされている</td><td>既に持っている</td></tr>
+    </tbody>
+  </table></div>
+  <div class="note">
+    <p>上の3つは<strong>むしろ積極的にAIを使う。</strong>そこで浮いた時間を下の5つに投じます。「AIを使わずに自力で脆弱性を探す」は修行にはなりますが、事業上の投資効率が悪い。</p>
+  </div>
+</section>
+
+<section>
+  <h2>危機シナリオと、そのときの手</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>起きること</th><th>影響</th><th>打ち手</th></tr></thead>
+    <tbody>
+      <tr><td>プラットフォームが「これを使えば準拠」を出す</td><td>設計力の価値が下がる</td><td><strong>審査側の足場</strong>があれば影響は小さい。段階2を急ぐ</td></tr>
+      <tr><td>サイバー保険が責任を肩代わりする</td><td>「責任の引受」の重みが減る</td><td>保険で代替できない<strong>判断</strong>（資格の要る判断）に寄せる</td></tr>
+      <tr><td>審査自体が自動化前提の基準に変わる</td><td>体制構築の価値が薄まる</td><td><strong>基準を作る側・審査する側</strong>にいれば、変化の側に立てる</td></tr>
+    </tbody>
+  </table></div>
+  <p>共通して効くのが<strong>段階2</strong>です。優先度は <strong>段階0 → 段階2の下準備 → 段階1</strong> の順でも構いません。段階1は維持費が重いので急がなくてよい。</p>
+</section>
+
+<section>
+  <h2>この計画の弱点</h2>
+  <ul>
+    <li><strong>実務5年の要件は、時間で買うしかありません。</strong>短縮できない</li>
+    <li><strong>1人であることが、内部監査で必ず問題になります。</strong>早めに委託先を探す</li>
+    <li><strong>資格を並べても案件は来ません。</strong>導入審査を1件通した実績のほうが強い</li>
+    <li>医療領域に張り付く前提の計画です。<strong>汎用のセキュリティ人材として出ると勝てません</strong></li>
+  </ul>
+</section>
+
+<section>
+  <h2>次の一手</h2>
+  <ol class="next">
+    <li><strong>医療情報技師の試験日程を確認し、申し込む。</strong>費用が最も軽く、薬剤師の強みが直接効く</li>
+    <li><strong>上級医療情報技師の実務経験要件</strong>を育成部会に問い合わせる。自分のサービス提供が算入されるか</li>
+    <li><strong>内部監査を委託できる先</strong>を1つ見つけておく</li>
+    <li>段階1（登録セキスペ）は、<strong>案件の見通しが立ってから</strong>判断する</li>
+  </ol>
+</section>
+
+<footer>
+  出典: 情報処理安全確保支援士の維持費は各解説記事に基づく概算。医療情報技師・上級医療情報技師の要件は医療情報技師育成部会の公表情報に基づく。費用と要件は改定されるため、申込前に一次情報で確認すること。
+</footer>
+
+</div>
