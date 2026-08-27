@@ -1,0 +1,467 @@
+<title>症状トリアージ 該当性相談</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@500;700&family=Noto+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap">
+
+<style>
+  :root {
+    --ground: #FAFAF7;
+    --surface: #FFFFFF;
+    --sunken: #F2F1EC;
+    --ink: #1A1F27;
+    --ink-soft: #5A6270;
+    --ink-faint: #878E9A;
+    --rule: #DCDBD4;
+    --rule-strong: #C3C2BA;
+    --indigo: #1F3A5F;
+    --indigo-soft: #48658C;
+    --seal: #9B4B3F;
+    --seal-wash: #F6EDEB;
+    --teal: #0E7C79;
+    --refer: #B23A2F;
+    --consult: #A97A16;
+    --otc: #2E7D4F;
+
+    --serif: "Noto Serif JP", "Yu Mincho", "Hiragino Mincho ProN", serif;
+    --sans: "Noto Sans JP", "Yu Gothic", "Hiragino Sans", sans-serif;
+    --mono: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #14171C;
+      --surface: #1B1F26;
+      --sunken: #22262E;
+      --ink: #E4E6E9;
+      --ink-soft: #A2A9B4;
+      --ink-faint: #7A828E;
+      --rule: #2E333C;
+      --rule-strong: #414750;
+      --indigo: #A8C2E4;
+      --indigo-soft: #8CA6C9;
+      --seal: #D99183;
+      --seal-wash: #2C2320;
+      --teal: #4FBFB8;
+      --refer: #E0796C;
+      --consult: #D6AC55;
+      --otc: #6FBF8E;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground: #14171C;
+    --surface: #1B1F26;
+    --sunken: #22262E;
+    --ink: #E4E6E9;
+    --ink-soft: #A2A9B4;
+    --ink-faint: #7A828E;
+    --rule: #2E333C;
+    --rule-strong: #414750;
+    --indigo: #A8C2E4;
+    --indigo-soft: #8CA6C9;
+    --seal: #D99183;
+    --seal-wash: #2C2320;
+    --teal: #4FBFB8;
+    --refer: #E0796C;
+    --consult: #D6AC55;
+    --otc: #6FBF8E;
+  }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.9;
+    margin: 0;
+    padding: 0 20px 96px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .doc { max-width: 780px; margin: 0 auto; }
+
+  /* ── 表紙 ───────────────────────────── */
+  header.cover {
+    padding: 72px 0 36px;
+    border-bottom: 2px solid var(--indigo);
+  }
+  .kicker {
+    font-size: 11.5px; letter-spacing: 0.18em; font-weight: 700;
+    color: var(--indigo); margin: 0 0 18px;
+  }
+  h1 {
+    font-family: var(--serif); font-weight: 700;
+    font-size: clamp(27px, 4.6vw, 38px); line-height: 1.45;
+    margin: 0 0 8px; color: var(--ink); text-wrap: balance;
+  }
+  .subject {
+    font-family: var(--serif); font-size: 17px; color: var(--ink-soft);
+    margin: 0 0 32px;
+  }
+  dl.meta {
+    display: grid; grid-template-columns: max-content 1fr;
+    gap: 6px 20px; margin: 0; font-size: 13.5px;
+  }
+  dl.meta dt { color: var(--ink-faint); font-weight: 500; }
+  dl.meta dd { margin: 0; color: var(--ink); }
+
+  /* ── 節 ─────────────────────────────── */
+  section { margin-top: 56px; }
+  h2 {
+    font-family: var(--serif); font-size: 21px; font-weight: 700;
+    color: var(--ink); margin: 0 0 6px; padding-bottom: 10px;
+    border-bottom: 1px solid var(--rule); text-wrap: balance;
+    display: flex; align-items: baseline; gap: 14px;
+  }
+  h2 .num {
+    font-family: var(--mono); font-size: 13px; font-weight: 500;
+    color: var(--indigo); flex: none;
+  }
+  h3 {
+    font-family: var(--sans); font-size: 15px; font-weight: 700;
+    color: var(--indigo); margin: 30px 0 8px;
+  }
+  p { margin: 14px 0; }
+  .lead { font-size: 16px; }
+  strong { font-weight: 700; }
+  a { color: var(--teal); text-underline-offset: 3px; }
+  a:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--teal); outline-offset: 3px;
+  }
+  code {
+    font-family: var(--mono); font-size: 0.87em;
+    background: var(--sunken); padding: 1px 5px; border-radius: 3px;
+    color: var(--ink);
+  }
+
+  /* ── 引用（規制側の言葉） ────────────────
+     この文書で最も重要な区別は「ガイドラインの記述」と「こちらの記述」。
+     地の色と縦罫で、読み手が出典を取り違えないようにする。 */
+  blockquote {
+    margin: 18px 0; padding: 16px 20px;
+    background: var(--sunken); border-left: 3px solid var(--indigo);
+    font-family: var(--serif); font-size: 14.5px; line-height: 1.85;
+    color: var(--ink);
+  }
+  blockquote p { margin: 0; }
+  blockquote cite {
+    display: block; margin-top: 10px; font-family: var(--sans);
+    font-style: normal; font-size: 12px; color: var(--ink-faint);
+  }
+
+  /* ── 表 ─────────────────────────────── */
+  .scroll { overflow-x: auto; margin: 18px 0; }
+  table {
+    width: 100%; border-collapse: collapse; font-size: 13.5px;
+    font-variant-numeric: tabular-nums;
+  }
+  th, td {
+    text-align: left; padding: 10px 14px;
+    border-bottom: 1px solid var(--rule); vertical-align: top;
+  }
+  thead th {
+    font-size: 11.5px; letter-spacing: 0.06em; color: var(--ink-faint);
+    font-weight: 700; border-bottom: 1px solid var(--rule-strong);
+    white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  td.num { font-family: var(--mono); white-space: nowrap; }
+
+  ul, ol { margin: 14px 0; padding-left: 1.3em; }
+  li { margin: 7px 0; }
+  li::marker { color: var(--indigo); }
+
+  /* ── 判定フロー ───────────────────────
+     順序そのものが仕様なので、番号は装飾ではなく情報。 */
+  ol.flow { list-style: none; padding: 0; margin: 20px 0; counter-reset: step; }
+  ol.flow li {
+    counter-increment: step; display: grid;
+    grid-template-columns: 30px 1fr auto; gap: 14px; align-items: center;
+    padding: 12px 16px; background: var(--surface);
+    border: 1px solid var(--rule); border-radius: 6px; margin-bottom: 7px;
+  }
+  ol.flow li::before {
+    content: counter(step); font-family: var(--mono); font-size: 12px;
+    color: var(--ink-faint); text-align: center;
+  }
+  .verdict {
+    font-size: 12px; font-weight: 700; white-space: nowrap;
+    padding: 3px 10px; border-radius: 999px; border: 1px solid currentColor;
+  }
+  .v-refer { color: var(--refer); }
+  .v-consult { color: var(--consult); }
+  .v-otc { color: var(--otc); }
+
+  /* ── 出力しないもの ─────────────────── */
+  ul.negations { list-style: none; padding: 0; }
+  ul.negations li {
+    padding-left: 26px; position: relative; margin: 9px 0;
+  }
+  ul.negations li::before {
+    content: "―"; position: absolute; left: 0; top: 0;
+    color: var(--seal); font-weight: 700;
+  }
+
+  /* ── 自己申告（自分に不利な節） ──────────
+     朱色はここだけ。文書の中で最も注意して読んでほしい部分。 */
+  section.flagged h2 { border-bottom-color: var(--seal); }
+  section.flagged h2 .num { color: var(--seal); }
+  .flag-note {
+    background: var(--seal-wash); border: 1px solid var(--seal);
+    border-radius: 6px; padding: 14px 18px; margin: 18px 0;
+    font-size: 14px; color: var(--ink);
+  }
+  section.flagged h3 { color: var(--seal); }
+
+  /* ── 問い ───────────────────────────── */
+  ol.asks { counter-reset: ask; list-style: none; padding: 0; }
+  ol.asks li {
+    counter-increment: ask; display: grid;
+    grid-template-columns: 34px 1fr; gap: 12px;
+    padding: 14px 0; border-bottom: 1px solid var(--rule);
+    font-size: 15px;
+  }
+  ol.asks li:last-child { border-bottom: none; }
+  ol.asks li::before {
+    content: "問" counter(ask); font-size: 12px; font-weight: 700;
+    color: var(--indigo); padding-top: 3px;
+  }
+
+  footer {
+    margin-top: 64px; padding-top: 20px;
+    border-top: 1px solid var(--rule);
+    font-size: 12.5px; color: var(--ink-faint);
+  }
+
+  @media (max-width: 560px) {
+    body { font-size: 14.5px; padding: 0 16px 64px; }
+    header.cover { padding-top: 48px; }
+    dl.meta { grid-template-columns: 1fr; gap: 2px; }
+    dl.meta dd { margin-bottom: 10px; }
+    ol.flow li { grid-template-columns: 24px 1fr; }
+    ol.flow li .verdict { grid-column: 2; justify-self: start; }
+  }
+</style>
+
+<div class="doc">
+
+<header class="cover">
+  <p class="kicker">プログラム医療機器 該当性相談資料</p>
+  <h1>症状トリアージ機能は<br>医療機器に該当するか</h1>
+  <p class="subject">ファーマケア（介護施設向け服薬管理サービス）</p>
+  <dl class="meta">
+    <dt>作成日</dt><dd>2026年8月27日</dd>
+    <dt>相談先候補</dt><dd>PMDA プログラム医療機器相談窓口 ／ 都道府県 薬務主管課</dd>
+    <dt>現在の状況</dt><dd>開発中・未販売・導入実績なし</dd>
+    <dt>製造販売業許可</dt><dd>未取得</dd>
+  </dl>
+</header>
+
+<section>
+  <h2><span class="num">§0</span><span>この文書について</span></h2>
+  <p class="lead">本サービスに含まれる<strong>症状トリアージ機能</strong>が、医薬品医療機器等法第2条第4項の医療機器（プログラム医療機器）に該当するかどうかの判断を仰ぐための資料です。</p>
+  <p>判断の材料になるよう、<strong>実装されている処理をそのまま</strong>記載しています。非該当であってほしいという立場から書いていますが、<strong>該当が疑われうる点は §7 に自分から列挙</strong>しました。そこが本題です。</p>
+  <p>参照した基準は次の2件です。</p>
+  <ul>
+    <li>「プログラムの医療機器該当性に関するガイドライン」（令和3年3月31日／令和5年3月31日一部改正、薬生機審発0331第1号・薬生監麻発0331第15号）</li>
+    <li>「プログラムの医療機器該当性判断事例について」（令和5年3月31日 事務連絡）</li>
+  </ul>
+</section>
+
+<section>
+  <h2><span class="num">§1</span><span>サービスの概要</span></h2>
+  <div class="scroll"><table>
+    <tbody>
+      <tr><th scope="row">名称</th><td>ファーマケア（PharmaCare）</td></tr>
+      <tr><th scope="row">形態</th><td>Webアプリケーション（ブラウザで動作、インストール不要）</td></tr>
+      <tr><th scope="row">目的</th><td>介護施設の職員と、その施設を担当する薬剤師との情報共有</td></tr>
+      <tr><th scope="row">主な機能</th><td>服薬情報の共有、服薬・バイタルの記録、薬剤師へのチャット相談、訪問予定の共有、添付文書に基づく服薬上の注意点表示、<strong>症状トリアージ</strong>、記録の書面出力</td></tr>
+      <tr><th scope="row">利用者</th><td>介護施設の職員（介護士・看護師）、薬剤師、入居者のご家族。<strong>一般消費者向けではない</strong></td></tr>
+      <tr><th scope="row">販売形態</th><td>施設・薬局向け（BtoB）</td></tr>
+    </tbody>
+  </table></div>
+  <p>本相談の対象は、上記のうち<strong>症状トリアージ機能のみ</strong>です。</p>
+</section>
+
+<section>
+  <h2><span class="num">§2</span><span>使用目的</span></h2>
+  <p class="lead">介護施設の職員が、入居者の体調不良に気づいたときに、<strong>薬剤師に相談すべきか、医療機関の受診を勧めるべきか</strong>を判断する際の参考情報を提示すること。</p>
+  <h3>前提としている現場の状況</h3>
+  <ul>
+    <li>介護施設には常時医師がおらず、夜間・休日は看護師も不在のことがある</li>
+    <li>職員は医療の専門教育を受けていないことが多い</li>
+    <li>判断に迷った結果、様子見が続いて対応が遅れる。あるいは逆に、不要な救急要請に至る</li>
+  </ul>
+  <p>本機能は、この場面で<strong>公表されている医学文献の「見逃してはいけない徴候」のチェックリストを、機械的に適用して提示する</strong>ものです。</p>
+</section>
+
+<section>
+  <h2><span class="num">§3</span><span>入力</span></h2>
+  <h3>職員が画面で選択・入力するもの</h3>
+  <div class="scroll"><table>
+    <thead><tr><th>種別</th><th>内容</th></tr></thead>
+    <tbody>
+      <tr><td>症候カテゴリ</td><td><strong>16種類</strong>から1つ選択（かぜ症状、発熱、頭痛、腹痛、下痢、めまい、動悸、咳、皮疹、浮腫、もの忘れ、意識障害 ほか）</td></tr>
+      <tr><td>症状の性質</td><td>選択式</td></tr>
+      <tr><td>重症度スコア</td><td>職員の主観による5段階（軽度〜重度）</td></tr>
+      <tr><td>危険信号チェック</td><td>症候ごとの該当項目。全16症候で計 <strong>118項目</strong></td></tr>
+      <tr><td>相談推奨チェック</td><td>一部の症候に設けた、受診までは要さないが相談が望ましい項目</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>システムが自動で参照するもの</h3>
+  <div class="scroll"><table>
+    <thead><tr><th>種別</th><th>内容</th></tr></thead>
+    <tbody>
+      <tr><td>バイタル実測値</td><td>SpO₂、収縮期血圧、脈拍（施設が別途測定し、手入力したもの）</td></tr>
+      <tr><td>入居者の属性</td><td>年齢、eGFR（腎機能）、肝機能の状態</td></tr>
+      <tr><td>服用中の薬剤名</td><td>お薬手帳から登録済みのもの</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section>
+  <h2><span class="num">§4</span><span>判定アルゴリズム</span></h2>
+  <p class="lead"><strong>すべて決定論的なルールで、サーバー側で完結します。</strong>統計モデル・機械学習・確率的推論は使用していません。同じ入力からは常に同じ結果が出ます。</p>
+
+  <h3>4.1　バイタル実測値の扱い</h3>
+  <p>閾値を超えた場合、対応する危険信号チェックが入っているものとして扱います。</p>
+  <div class="scroll"><table>
+    <thead><tr><th>項目</th><th>閾値</th><th>適用範囲</th></tr></thead>
+    <tbody>
+      <tr><td>SpO₂</td><td class="num">90% 未満</td><td>全症候</td></tr>
+      <tr><td>収縮期血圧</td><td class="num">180 mmHg 以上</td><td>頭痛のみ</td></tr>
+      <tr><td>収縮期血圧</td><td class="num">100 mmHg 以下</td><td>全症候</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>4.2　判定の優先順位</h3>
+  <p>上から順に評価し、最初に該当したものを結果とします。</p>
+  <ol class="flow">
+    <li><span>症候カテゴリが<strong>意識障害</strong>である</span><span class="verdict v-refer">医療機関受診推奨</span></li>
+    <li><span>危険信号がひとつでも該当する</span><span class="verdict v-refer">医療機関受診推奨</span></li>
+    <li><span>重症度スコアが 4 以上</span><span class="verdict v-consult">薬剤師相談推奨</span></li>
+    <li><span>相談推奨項目が該当する</span><span class="verdict v-consult">薬剤師相談推奨</span></li>
+    <li><span>いずれにも該当しない</span><span class="verdict v-otc">OTC対応可</span></li>
+  </ol>
+  <p>実装箇所は <code>llm-proxy/redflag.go</code> の <code>DetermineTriageResult()</code> および <code>ApplyVitalsRedFlags()</code> です。</p>
+</section>
+
+<section>
+  <h2><span class="num">§5</span><span>出力</span></h2>
+  <h3>5.1　提示するもの</h3>
+  <div class="scroll"><table>
+    <thead><tr><th>出力</th><th>画面表示</th></tr></thead>
+    <tbody>
+      <tr><td>3区分の判定</td><td>「医療機関受診推奨」／「薬剤師相談推奨」／「OTC対応可」</td></tr>
+      <tr><td>判定の根拠</td><td>該当した危険信号の項目名（どのチェックが判定を決めたか）</td></tr>
+      <tr><td>説明文</td><td>上記の判定を平易な言葉で言い換えたもの</td></tr>
+    </tbody>
+  </table></div>
+  <p>判定は記録として残り、担当薬剤師が同じ画面で確認できます。</p>
+
+  <h3>5.2　提示しないもの</h3>
+  <p>いずれも設計上、意図的に出力していません。</p>
+  <ul class="negations">
+    <li><strong>疾患名・疾患候補。</strong>「〜の疑い」といった表示を一切行いません</li>
+    <li><strong>疾病の発症リスク、重症度スコア等の推定値</strong></li>
+    <li><strong>治療方針の提案</strong></li>
+    <li><strong>特定の医薬品の推奨。</strong>「OTC対応可」は区分であり、品目を挙げません</li>
+    <li><strong>検査の推奨</strong></li>
+  </ul>
+
+  <h3>5.3　AI（大規模言語モデル）の位置づけ</h3>
+  <p><strong>判定にAIは関与しません。</strong></p>
+  <ul>
+    <li>AIが行うのは、確定済みの判定を<strong>平易な言葉に言い換えること</strong>のみ</li>
+    <li>AIの出力が判定区分を上書きしない構造にしている</li>
+    <li>AIが利用できない状況でも、判定はアプリ側だけで確定する</li>
+  </ul>
+  <p>実装箇所は <code>llm-proxy/handlers.go</code> の <code>triageHandler()</code> です。判定を先に確定させ、その結果をAIに渡しています。</p>
+</section>
+
+<section>
+  <h2><span class="num">§6</span><span>非該当と考えている理由</span></h2>
+  <ol>
+    <li><strong>疾病の診断をしていない。</strong>疾患名も疾患候補も、発症リスクの推定値も出力しません</li>
+    <li><strong>判定は公表文献のチェックリストの機械的な適用</strong>であり、推論ではありません。根拠とした項目は §9 のとおり公表資料で、閾値もすべて文献由来です</li>
+    <li><strong>治療に関与しません。</strong>薬剤の推奨も、用法用量の提示も行いません</li>
+    <li><strong>利用者は介護・医療の専門職</strong>であり、一般消費者ではありません</li>
+    <li>本機能の位置づけは<strong>薬剤師への相談導線の入口</strong>であり、最終的な判断は薬剤師または医療機関が行う前提です</li>
+  </ol>
+</section>
+
+<section class="flagged">
+  <h2><span class="num">§7</span><span>該当が疑われうる点（自己申告）</span></h2>
+  <div class="flag-note">ガイドラインの記載と突き合わせて、<strong>判断を仰ぎたいのは主にこの3点</strong>です。</div>
+
+  <h3>7.1　「個人を特定せず、一般的な情報の範囲で」の枠に収まらない</h3>
+  <p>ガイドラインが医療機器に該当しない例として挙げているのは、次の水準です。</p>
+  <blockquote>
+    <p>個人を特定せずに、一般的な情報の範囲で医療機関受診について助言する（例：常時「体調に異常を感じる場合は医療機関を受診したほうがよい」と表示。関心のある部位として「目」を入力すると、眼科の受診を勧める。）（診断と誤認を与えるものは除く）</p>
+    <cite>プログラムの医療機器該当性に関するガイドライン</cite>
+  </blockquote>
+  <p>本機能は<strong>特定の入居者について</strong>、その人のバイタル実測値と属性を用いて判定します。上記の例より踏み込んでいることは自覚しています。</p>
+
+  <h3>7.2　「追加検査の推奨等」に読まれうる</h3>
+  <blockquote>
+    <p>疾病の早期発見、疾病のスクリーニング、医師の診断補助、追加検査の推奨等に用いることを目的とするプログラムは、「診断」を意図するものとして、GHTF クラス分類ルール10に該当する</p>
+    <cite>同ガイドライン</cite>
+  </blockquote>
+  <p>「医療機関受診推奨」を出し分けることが、ここに当たるかどうか。</p>
+
+  <h3>7.3　バイタル実測値を判定に組み込んでいる</h3>
+  <p>SpO₂・血圧の実測値を閾値判定し、結果に反映しています。なお<strong>センサから信号を取得して計測値を表示する機能は持ちません</strong>。値は施設が別途測定して手入力したものです。</p>
+</section>
+
+<section>
+  <h2><span class="num">§8</span><span>設計変更の余地</span></h2>
+  <p>該当と判断される場合、非該当側に寄せるための調整として次を検討できます。<strong>販売前の段階なので、設計を変えることが可能です。</strong></p>
+  <div class="scroll"><table>
+    <thead><tr><th>案</th><th>内容</th><th>失われるもの</th></tr></thead>
+    <tbody>
+      <tr><td class="num">A</td><td>3区分の判定を出さず、<strong>該当した危険信号を列挙するだけ</strong>にする</td><td>判断の明快さ。職員が自分で解釈する必要が出る</td></tr>
+      <tr><td class="num">B</td><td>出力を「薬剤師に相談してください」の<strong>一本</strong>にし、受診の推奨を行わない</td><td>緊急性の高低が伝わらない</td></tr>
+      <tr><td class="num">C</td><td>バイタル実測値を判定から外し、<strong>表示のみ</strong>にする</td><td>自己申告に頼ることになり、見落としが増える</td></tr>
+      <tr><td class="num">D</td><td>利用者を<strong>薬剤師・看護師に限定</strong>し、介護職には開放しない</td><td>現場で最初に気づく人が使えない</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section>
+  <h2><span class="num">§9</span><span>判定根拠に用いた資料</span></h2>
+  <div class="scroll"><table>
+    <thead><tr><th>資料</th><th>用途</th></tr></thead>
+    <tbody>
+      <tr><td>厚生労働省 セルフメディケーション（一般用医薬品等）関連資料</td><td>受診勧奨の考え方</td></tr>
+      <tr><td>『アルゴリズムで考える 薬剤師の臨床判断』</td><td>症候別の危険信号、qSOFA等の閾値</td></tr>
+      <tr><td>症候別トリアージに関する薬剤師向け書籍</td><td>危険信号の項目</td></tr>
+    </tbody>
+  </table></div>
+  <p>危険信号118項目は、上記の<strong>原本すべてと照合済み</strong>です（2026年8月19日実施）。各項目がどの資料のどの記載に対応するかの一覧を、必要に応じて提出できます。</p>
+</section>
+
+<section>
+  <h2><span class="num">§10</span><span>相談したい事項</span></h2>
+  <ol class="asks">
+    <li>§2〜§5 に記載した機能は、プログラム医療機器に<strong>該当しますか</strong></li>
+    <li>該当する場合、<strong>クラス分類</strong>はどうなりますか</li>
+    <li>非該当とするために、§8 のうち<strong>どの調整が必要</strong>ですか</li>
+    <li>標榜（画面表示・紹介資料での説明の仕方）について、避けるべき表現があればご教示ください</li>
+  </ol>
+</section>
+
+<section>
+  <h2><span class="num">§11</span><span>標榜についての認識</span></h2>
+  <blockquote>
+    <p>「当該プログラムは医療機器ではない」旨の記載、表示があることをもって、当該プログラムが医療機器ではないことの根拠とはならない。そのような記載があっても、疾病の疑いを判断できるなどと医療機器との認識を与える広告・標ぼうをする製品は医療機器に該当する</p>
+    <cite>同ガイドライン 8(1) 脚注</cite>
+  </blockquote>
+  <p>免責表示で回避できるものではないと理解しており、<strong>機能そのものと説明の仕方の両方</strong>について判断を仰ぎたいと考えています。</p>
+</section>
+
+<footer>
+  本資料は開発者本人が実装内容に基づき作成したものです。法令解釈について専門家の確認を受けたものではありません。
+</footer>
+
+</div>
