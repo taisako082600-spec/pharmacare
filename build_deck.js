@@ -188,7 +188,46 @@ function arrow(s, x, y, w) {
     { x: 0.8, y: 6.88, w: 11.7, h: 0.35, fontFace: F.jp, fontSize: 10, color: C.inkSub, margin: 0 });
 }
 
-// ══════════════════════════════════ 課題② つないだ先に何が生まれるか
+// ══════════════════════════════════ 課題② なぜ今か
+//
+// 「なぜ必要か」は最後までここで言い切る。この次から先は答えの側なので、
+// 背景の話に戻らない。
+{
+  const s = light();
+  heading(s, 'なぜ、今つくるのか',
+    '制度の流れが、施設と薬局を近づけている');
+
+  const reasons = [
+    ['在宅・施設への訪問が国の方向',
+     '薬剤師の役割は「薬を渡す」から「渡したあとを見る」へ移っている。\n施設に足を運ぶ機会は今後さらに増える。'],
+    ['門前から面へ',
+     '特定の病院の前に構える薬局から、地域のどの処方箋も受ける薬局へ。\n処方元に電話すれば済んでいたことが、済まなくなる。\n患者の薬を薬局側で一元的に把握する必要が出てくる。'],
+    ['服薬期間中のフォローアップは、すでに義務',
+     '2020年9月施行の改正薬機法・薬剤師法で、渡したあとの服薬状況を\n継続的に把握することが薬剤師の責務になった。\nただし現場の手段は電話が中心で、続けるのが難しい。'],
+  ];
+
+  reasons.forEach(([title, body], i) => {
+    const y = 1.95 + i * 1.42;
+    badge(s, String(i + 1), 0.8, y + 0.1, 0.52, C.mid, 15);
+    s.addText(title, {
+      x: 1.55, y: y + 0.05, w: 10.9, h: 0.45,
+      fontFace: F.jp, fontSize: 18, bold: true, color: C.deep, margin: 0,
+    });
+    s.addText(body, {
+      x: 1.55, y: y + 0.5, w: 10.9, h: 0.9,
+      fontFace: F.jp, fontSize: 13.5, color: C.ink, margin: 0, lineSpacingMultiple: 1.2,
+    });
+  });
+
+  card(s, 0.8, 6.3, 11.7, 0.85, C.wash);
+  s.addText('義務だから電話をかけるのではなく、続けられる形にする。それが結果として、選ばれる薬局につながる',
+    { x: 1.15, y: 6.3, w: 11.0, h: 0.85, fontFace: F.jp, fontSize: 15, bold: true, color: C.deep, valign: 'middle', margin: 0 });
+}
+
+// ══════════════════════════════════ 答えの入口 — ここから第1部の中身
+//
+// 課題2枚を受けて「では何を作ったか」に切り替わる地点。
+// この先は登録の流れ・機能一覧・トリアージと、アプリの話が続く。
 {
   const s = light();
   heading(s, 'つなぐと、その人に合わせられる',
@@ -230,39 +269,6 @@ function arrow(s, x, y, w) {
     s.addShape(pres.ShapeType.rect, { x: 0.8, y: 5.82 + i * 0.6, w: 0.04, h: 0.42, fill: { color: C.amber }, line: { color: C.amber } });
     s.addText(t, { x: 1.05, y: 5.78 + i * 0.6, w: 11.4, h: 0.5, fontFace: F.jp, fontSize: 14, color: C.ink, margin: 0 });
   });
-}
-
-// ══════════════════════════════════ 課題③ なぜ今か
-{
-  const s = light();
-  heading(s, 'なぜ、今つくるのか',
-    '制度の流れが、施設と薬局を近づけている');
-
-  const reasons = [
-    ['在宅・施設への訪問が国の方向',
-     '薬剤師の役割は「薬を渡す」から「渡したあとを見る」へ移っている。\n施設に足を運ぶ機会は今後さらに増える。'],
-    ['門前から面へ',
-     '特定の病院の前に構える薬局から、地域のどの処方箋も受ける薬局へ。\n処方元に電話すれば済んでいたことが、済まなくなる。\n患者の薬を薬局側で一元的に把握する必要が出てくる。'],
-    ['服薬期間中のフォローアップは、すでに義務',
-     '2020年9月施行の改正薬機法・薬剤師法で、渡したあとの服薬状況を\n継続的に把握することが薬剤師の責務になった。\nただし現場の手段は電話が中心で、続けるのが難しい。'],
-  ];
-
-  reasons.forEach(([title, body], i) => {
-    const y = 1.95 + i * 1.42;
-    badge(s, String(i + 1), 0.8, y + 0.1, 0.52, C.mid, 15);
-    s.addText(title, {
-      x: 1.55, y: y + 0.05, w: 10.9, h: 0.45,
-      fontFace: F.jp, fontSize: 18, bold: true, color: C.deep, margin: 0,
-    });
-    s.addText(body, {
-      x: 1.55, y: y + 0.5, w: 10.9, h: 0.9,
-      fontFace: F.jp, fontSize: 13.5, color: C.ink, margin: 0, lineSpacingMultiple: 1.2,
-    });
-  });
-
-  card(s, 0.8, 6.3, 11.7, 0.85, C.wash);
-  s.addText('義務だから電話をかけるのではなく、続けられる形にする。それが結果として、選ばれる薬局につながる',
-    { x: 1.15, y: 6.3, w: 11.0, h: 0.85, fontFace: F.jp, fontSize: 15, bold: true, color: C.deep, valign: 'middle', margin: 0 });
 }
 
 // ══════════════════════════════════ 登録の流れ
