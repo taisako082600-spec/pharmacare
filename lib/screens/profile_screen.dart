@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user_model.dart';
 import '../services/invite_code.dart';
+import 'facility_audit_log_screen.dart';
 import '../services/auth_service.dart';
 import 'login_screen.dart';
 import 'mfa_screens.dart';
@@ -102,6 +103,24 @@ class ProfileScreen extends StatelessWidget {
                         );
                       },
                     ),
+                    // 施設に属している人だけに出す。ガイドライン17①の
+                    // 「定期的に確認すること」は施設が果たすものなので、
+                    // 導線が無いと果たしようがない。
+                    if (user.facilityId.isNotEmpty) ...[
+                      const Divider(height: 1, indent: 56),
+                      _MenuItem(
+                        icon: Icons.history_outlined,
+                        label: '操作履歴を確認',
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => FacilityAuditLogScreen(user: user),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
                     const Divider(height: 1, indent: 56),
                     _MenuItem(icon: Icons.help_outline, label: 'ヘルプ・お問い合わせ', onTap: () {}),
                     const Divider(height: 1, indent: 56),

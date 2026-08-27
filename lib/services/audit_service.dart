@@ -100,13 +100,24 @@ class AuditService {
         .snapshots();
   }
 
-  /// 施設の監査ログを取得
-  Stream<QuerySnapshot> getAuditLogsForFacility(String facilityId) {
+  /// 施設の監査ログを取得。
+  ///
+  /// ガイドライン システム運用編 17① は、記録するだけでなく
+  /// 「定期的に確認すること」まで求めており、確認する主体は施設。
+  /// その画面(facility_audit_log_screen.dart)が使う。
+  ///
+  /// 以前は `documentId == facilityId` で絞っていたが、documentId に入るのは
+  /// 操作対象(患者等)のドキュメントIDで、施設IDとは一致しない。
+  /// つまり**常に0件を返す**クエリだった(呼び出し元が無かったため露見していなかった)。
+  ///
+  /// where + 別フィールドの orderBy は複合インデックスが要る
+  /// (firestore.indexes.json に定義済み)。
+  Stream<QuerySnapshot> getAuditLogsForFacility(String facilityId, {int limit = 300}) {
     return _db
         .collection('audit_logs')
-        .where('collection', isEqualTo: 'patients')
-        .where('documentId', isEqualTo: facilityId)
+        .where('facilityId', isEqualTo: facilityId)
         .orderBy('timestamp', descending: true)
+        .limit(limit)
         .snapshots();
   }
 

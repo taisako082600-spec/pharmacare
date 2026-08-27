@@ -88,6 +88,30 @@ service cloud.firestore {
       return ownsTargetFacility() || hasValidInviteCode();
     }
 
+    // 施設側が、承認した薬剤師の users ドキュメントへ所属を書き込むための例外。
+    //
+    // 申請→承認のフローでは、書き込む相手が自分ではない。以前は施設管理者が
+    // 直接 users/{薬剤師} を更新しており、ルールはグローバル管理者しか
+    // 許可していないため**承認が常に失敗していた**(2026-08-27に判明)。
+    //
+    // かといって「施設の人なら他人のusersを書ける」にすると、任意の利用者の
+    // 所属を勝手に付け替えて、その人を本来の施設から締め出せてしまう。
+    // そこで **承認済みの申請が実在すること** を条件にする。申請の
+    // ドキュメントIDを「薬剤師UID_施設ID」に固定してあるので get() で辿れる。
+    //
+    // 書き換えてよいのは所属3項目だけ。role や linkedPatientId には触らせない。
+    function grantsApprovedConnection(targetUid) {
+      let fid = request.resource.data.get('facilityId', '');
+      let requestId = targetUid + '_' + fid;
+      return isSignedIn()
+        && fid != ''
+        && belongsToFacility(fid)
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['facilityId', 'facilityIds', 'facilityName'])
+        && exists(/databases/$(database)/documents/connection_requests/$(requestId))
+        && get(/databases/$(database)/documents/connection_requests/$(requestId)).data.status == 'approved';
+    }
+
     // 家族アカウントが「どの入居者に紐づくか」の検証。
     //
     // isLinkedFamily() は users の role=='家族' と linkedPatientId だけで判定している。
@@ -120,7 +144,8 @@ service cloud.firestore {
       allow update: if isAdmin()
                     || (request.auth.uid == uid
                         && !changesPrivilegedUserFields()
-                        && (!changesFacilityFields() || facilityJoinIsAuthorised()));
+                        && (!changesFacilityFields() || facilityJoinIsAuthorised()))
+                    || grantsApprovedConnection(uid);
       allow delete: if isAdmin();
     }
 
@@ -334,7 +359,13 @@ service cloud.firestore {
     //  - ③記録に用いる時刻は信頼できる情報を使う → クライアント時刻を受け付けず、
     //    サーバー時刻(request.time = FieldValue.serverTimestamp())と一致するものだけ通す
     match /audit_logs/{logId} {
-      allow read: if isAdmin();
+      // 17①は記録するだけでなく「定期的に確認すること」まで求めており、
+      // その確認をするのは**施設**。読み取りが isAdmin() 限定だったため、
+      // 施設は自分のところのログを一切見られず、求められていることを
+      // 果たせない状態だった。自施設のログに限って開ける。
+      // ログには facilityId が入っているので、施設単位に閉じられる。
+      allow read: if isAdmin()
+                  || (isSignedIn() && belongsToFacility(resource.data.facilityId));
       allow create: if isSignedIn()
                     && request.resource.data.userId == request.auth.uid
                     && request.resource.data.timestamp == request.time;

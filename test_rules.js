@@ -29,6 +29,12 @@ const PATIENT = 'patient_secret';
 const CODE_FACILITY = '111111'; // 施設参加用(patientId なし)
 const CODE_FAMILY = '222222'; // 家族用(patientId あり)
 
+// 申請→承認フローの検証用
+const MEMBER = 'uid_member'; // MEMBER_FACILITY に所属している職員
+const MEMBER_FACILITY = 'facility_member';
+const PHARMACIST = 'uid_pharmacist'; // 申請していない薬剤師
+const APPROVED_PHARMACIST = 'uid_pharmacist_ok'; // 承認済みの申請がある薬剤師
+
 const NOW = '2026-08-27T00:00:00Z';
 const FUTURE = '2030-01-01T00:00:00Z';
 
@@ -59,6 +65,20 @@ const MOCKS = [
   mockExists(`${DOCS}/invite_codes/999999`, false),
   mockExists(`${DOCS}/users/${ME}`, true),
   mockGet(`${DOCS}/users/${ME}`, { isAdmin: false, role: '介護士', facilityId: '', facilityIds: [] }),
+  // 申請→承認フロー用。MEMBER は MEMBER_FACILITY に所属している。
+  mockExists(`${DOCS}/users/${MEMBER}`, true),
+  mockGet(`${DOCS}/users/${MEMBER}`, {
+    isAdmin: false,
+    role: '介護士',
+    facilityId: MEMBER_FACILITY,
+    facilityIds: [MEMBER_FACILITY],
+  }),
+  // 承認済みの申請があるのは APPROVED_PHARMACIST の分だけ。
+  mockExists(`${DOCS}/connection_requests/${APPROVED_PHARMACIST}_${MEMBER_FACILITY}`, true),
+  mockGet(`${DOCS}/connection_requests/${APPROVED_PHARMACIST}_${MEMBER_FACILITY}`, {
+    status: 'approved',
+  }),
+  mockExists(`${DOCS}/connection_requests/${PHARMACIST}_${MEMBER_FACILITY}`, false),
 ];
 
 function mockGet(p, data) {
@@ -213,6 +233,35 @@ const CASES = [
       usedBy: ME,
       expiresAt: FUTURE,
     },
+  }),
+  // 申請→承認フロー。施設側が薬剤師の users を書けるのは、
+  // 承認済みの申請が実在するときだけ。
+  tc('⑬ 承認していない薬剤師を勝手に自施設へ所属させる', 'DENY', {
+    method: 'update',
+    docPath: `users/${PHARMACIST}`,
+    uid: MEMBER,
+    before: user({ name: '薬剤師' }),
+    data: user({ name: '薬剤師', facilityId: MEMBER_FACILITY, facilityIds: [MEMBER_FACILITY] }),
+  }),
+  tc('⑭ 承認済みの申請があれば所属させられる', 'ALLOW', {
+    method: 'update',
+    docPath: `users/${APPROVED_PHARMACIST}`,
+    uid: MEMBER,
+    before: user({ name: '薬剤師' }),
+    data: user({ name: '薬剤師', facilityId: MEMBER_FACILITY, facilityIds: [MEMBER_FACILITY] }),
+  }),
+  tc('⑮ 承認に便乗して相手のロールも書き換える', 'DENY', {
+    method: 'update',
+    docPath: `users/${APPROVED_PHARMACIST}`,
+    uid: MEMBER,
+    before: user({ name: '薬剤師' }),
+    data: user({
+      name: '薬剤師',
+      role: '家族',
+      linkedPatientId: PATIENT,
+      facilityId: MEMBER_FACILITY,
+      facilityIds: [MEMBER_FACILITY],
+    }),
   }),
   tc('⑫ 正規の使用済み化(自分が使う)', 'ALLOW', {
     method: 'update',

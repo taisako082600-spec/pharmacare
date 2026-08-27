@@ -126,7 +126,15 @@ class _PharmacistConnectionScreenState extends State<PharmacistConnectionScreen>
       return;
     }
 
-    await FirebaseFirestore.instance.collection('connection_requests').add({
+    // ドキュメントIDを「薬剤師UID_施設ID」に固定する。
+    // 承認後、施設側が薬剤師の users ドキュメントへ所属を書き込む必要があるが、
+    // firestore.rules がそれを許可してよいか判断するには「承認済みの申請が実在するか」を
+    // get() で引けなければならない。自動採番IDだとルールから辿れない
+    // (招待コードをコード文字列IDにしたのと同じ理由)。
+    await FirebaseFirestore.instance
+        .collection('connection_requests')
+        .doc('${widget.user.uid}_$facilityId')
+        .set({
       'pharmacistId': widget.user.uid,
       'pharmacistName': widget.user.name,
       'pharmacistEmail': widget.user.email,

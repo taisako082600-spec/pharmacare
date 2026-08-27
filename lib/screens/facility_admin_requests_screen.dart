@@ -74,11 +74,22 @@ class FacilityAdminRequestsScreen extends StatelessWidget {
   }
 
   Future<void> _approve(BuildContext context, String requestId, String pharmacistId, String pharmacistName) async {
-    final batch = FirebaseFirestore.instance.batch();
-    batch.update(
-      FirebaseFirestore.instance.collection('connection_requests').doc(requestId),
+    // **一括(batch)にしてはいけない。**
+    //
+    // 薬剤師の users ドキュメントへ所属を書き込む操作を、firestore.rules は
+    // 「承認済みの申請が実在すること」を条件に許可する。ところがルールは
+    // 書き込み前の状態を見るため、同じバッチで status を approved にしても
+    // 評価時点ではまだ pending で、承認が丸ごと拒否される。
+    // 先に承認を確定させてから、所属の書き込みに進む。
+    //
+    // なおこの承認フローは、以前は他人の users ドキュメントを直接書いており
+    // (ルールはグローバル管理者しか許可していない)、**権限不足で常に失敗していた**
+    // (2026-08-27に判明)。
+    await FirebaseFirestore.instance.collection('connection_requests').doc(requestId).update(
       {'status': 'approved', 'approvedAt': FieldValue.serverTimestamp()},
     );
+
+    final batch = FirebaseFirestore.instance.batch();
     batch.update(
       FirebaseFirestore.instance.collection('facilities').doc(user.facilityId),
       {'pharmacistIds': FieldValue.arrayUnion([pharmacistId])},
