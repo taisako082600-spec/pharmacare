@@ -149,3 +149,6 @@ _内部/
 
 # PDFは .md から再生成できるので追跡しない
 docs/pdf/
+
+# Claude Code のローカル設定（許可設定などマシン固有）
+.claude/settings.local.json
