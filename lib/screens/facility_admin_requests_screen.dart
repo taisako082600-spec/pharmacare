@@ -1,24 +1,20 @@
-﻿import 'dart:math';
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user_model.dart';
+import '../services/invite_code.dart';
 
 class FacilityAdminRequestsScreen extends StatelessWidget {
   final UserModel user;
   const FacilityAdminRequestsScreen({super.key, required this.user});
 
-  // 6桁コード生成
-  String _generateCode() {
-    final rand = Random.secure();
-    return (100000 + rand.nextInt(900000)).toString();
-  }
-
   Future<void> _issueInviteCode(BuildContext context) async {
-    final code = _generateCode();
+    final code = InviteCode.generate();
     final expiresAt = DateTime.now().add(const Duration(minutes: 30));
 
-    await FirebaseFirestore.instance.collection('invite_codes').add({
+    // ドキュメントIDはコード文字列そのもの。firestore.rules の users が
+    // get() でこのドキュメントを引いて所属の正当性を確かめるため、自動採番IDにしない。
+    await FirebaseFirestore.instance.collection('invite_codes').doc(code).set({
       'code': code,
       'facilityId': user.facilityId,
       'facilityName': user.facilityName,
@@ -44,8 +40,8 @@ class FacilityAdminRequestsScreen extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
-                code,
-                style: const TextStyle(fontSize: 36, fontWeight: FontWeight.bold, letterSpacing: 8, color: Color(0xFF1976D2)),
+                InviteCode.formatForDisplay(code),
+                style: const TextStyle(fontSize: 30, fontWeight: FontWeight.bold, letterSpacing: 3, color: Color(0xFF1976D2)),
               ),
             ),
             const SizedBox(height: 12),
@@ -78,11 +74,22 @@ class FacilityAdminRequestsScreen extends StatelessWidget {
   }
 
   Future<void> _approve(BuildContext context, String requestId, String pharmacistId, String pharmacistName) async {
-    final batch = FirebaseFirestore.instance.batch();
-    batch.update(
-      FirebaseFirestore.instance.collection('connection_requests').doc(requestId),
+    // **一括(batch)にしてはいけない。**
+    //
+    // 薬剤師の users ドキュメントへ所属を書き込む操作を、firestore.rules は
+    // 「承認済みの申請が実在すること」を条件に許可する。ところがルールは
+    // 書き込み前の状態を見るため、同じバッチで status を approved にしても
+    // 評価時点ではまだ pending で、承認が丸ごと拒否される。
+    // 先に承認を確定させてから、所属の書き込みに進む。
+    //
+    // なおこの承認フローは、以前は他人の users ドキュメントを直接書いており
+    // (ルールはグローバル管理者しか許可していない)、**権限不足で常に失敗していた**
+    // (2026-08-27に判明)。
+    await FirebaseFirestore.instance.collection('connection_requests').doc(requestId).update(
       {'status': 'approved', 'approvedAt': FieldValue.serverTimestamp()},
     );
+
+    final batch = FirebaseFirestore.instance.batch();
     batch.update(
       FirebaseFirestore.instance.collection('facilities').doc(user.facilityId),
       {'pharmacistIds': FieldValue.arrayUnion([pharmacistId])},
@@ -245,8 +252,8 @@ class _InviteCodeTab extends StatelessWidget {
                     decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10)),
                     child: Row(
                       children: [
-                        Text(data['code'] ?? '', style: TextStyle(
-                          fontSize: 22, fontWeight: FontWeight.bold, letterSpacing: 4,
+                        Text(InviteCode.formatForDisplay(data['code'] ?? ''), style: TextStyle(
+                          fontSize: 19, fontWeight: FontWeight.bold, letterSpacing: 2,
                           color: isExpired || isUsed ? Colors.grey : const Color(0xFF1976D2),
                         )),
                         const Spacer(),

@@ -1,6 +1,60 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import '../services/mfa_service.dart';
+
+/// 再認証のためにパスワードを聞き直すダイアログ。
+///
+/// 二要素認証の登録は、直近のログインから時間が経っていると Firebase に拒否される
+/// (`auth/requires-recent-login`)。乗っ取られたセッションで勝手に second factor を
+/// 足されないための仕様なので、いったんパスワードで本人確認をやり直す。
+///
+/// 戻り値は入力されたパスワード。キャンセルなら null。
+Future<String?> showReauthDialog(BuildContext context) {
+  final ctrl = TextEditingController();
+  var obscure = true;
+  return showDialog<String>(
+    context: context,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setLocal) => AlertDialog(
+        title: const Text('パスワードをもう一度入力してください'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'ログインしてから時間が経っています。安全のため、'
+              '設定を続ける前に本人確認をさせてください。',
+              style: TextStyle(fontSize: 13, height: 1.6),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: ctrl,
+              obscureText: obscure,
+              autofocus: true,
+              decoration: InputDecoration(
+                labelText: 'パスワード',
+                border: const OutlineInputBorder(),
+                suffixIcon: IconButton(
+                  icon: Icon(obscure ? Icons.visibility_off : Icons.visibility),
+                  onPressed: () => setLocal(() => obscure = !obscure),
+                ),
+              ),
+              onSubmitted: (v) => Navigator.pop(ctx, v),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('キャンセル')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, ctrl.text),
+            child: const Text('確認'),
+          ),
+        ],
+      ),
+    ),
+  );
+}
 
 /// ログイン時に認証アプリの6桁を入力してもらうダイアログ。
 /// 入力された6桁を返す。キャンセルされたら null。
@@ -77,6 +131,8 @@ class MfaSettingsScreen extends StatefulWidget {
 class _MfaSettingsScreenState extends State<MfaSettingsScreen> {
   bool _loading = true;
   bool _enrolled = false;
+  bool _emailVerified = false;
+  bool _verificationSent = false;
   String? _error;
 
   // 登録手続き中に保持する情報
@@ -99,9 +155,12 @@ class _MfaSettingsScreenState extends State<MfaSettingsScreen> {
   Future<void> _refresh() async {
     setState(() => _loading = true);
     try {
+      // メール確認の状態はサーバーから取り直す(確認直後でも反映されるように)
+      final verified = await MfaService().isEmailVerified();
       final enrolled = await MfaService().isEnrolled();
       if (!mounted) return;
       setState(() {
+        _emailVerified = verified;
         _enrolled = enrolled;
         _loading = false;
       });
@@ -114,7 +173,29 @@ class _MfaSettingsScreenState extends State<MfaSettingsScreen> {
     }
   }
 
-  Future<void> _startEnrollment() async {
+  Future<void> _sendVerification() async {
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+    try {
+      await MfaService().sendEmailVerification();
+      if (!mounted) return;
+      setState(() {
+        _verificationSent = true;
+        _submitting = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        // 短時間に何度も送るとFirebase側で弾かれる
+        _error = '確認メールを送れませんでした。しばらく待ってからもう一度お試しください';
+        _submitting = false;
+      });
+    }
+  }
+
+  Future<void> _startEnrollment({bool retriedAfterReauth = false}) async {
     setState(() {
       _submitting = true;
       _error = null;
@@ -128,11 +209,45 @@ class _MfaSettingsScreenState extends State<MfaSettingsScreen> {
       });
     } catch (e) {
       if (!mounted) return;
+
+      // ログインから時間が経っていると Firebase が登録を拒む。
+      // パスワードを聞き直して本人確認をやり直し、一度だけ自動で再試行する。
+      if (MfaService.isRecentLoginRequired(e) && !retriedAfterReauth) {
+        setState(() => _submitting = false);
+        final password = await showReauthDialog(context);
+        if (password == null || password.isEmpty) return;
+        try {
+          await MfaService().reauthenticate(password);
+          if (!mounted) return;
+          await _startEnrollment(retriedAfterReauth: true);
+          return;
+        } catch (_) {
+          if (!mounted) return;
+          setState(() => _error = 'パスワードが正しくありません。もう一度お試しください');
+          return;
+        }
+      }
+
       setState(() {
-        _error = '設定を開始できませんでした: $e';
+        _error = MfaService.isUnverifiedEmail(e)
+            ? 'メールアドレスの確認が済んでいません。確認メールのリンクを開いてから、'
+                '「状態を更新」を押してください'
+            : '設定を開始できませんでした。時間をおいて、もう一度お試しください'
+                '${_detail(e)}';
         _submitting = false;
       });
     }
+  }
+
+  /// 失敗の手がかりを括弧書きで添える。
+  /// 以前は `e.runtimeType` をそのまま出していて「（JSObject）」としか表示されず、
+  /// 利用者にも問い合わせを受ける側にも何の情報にもなっていなかった。
+  /// コードが取れないときは、せめてJS側のメッセージを出す。
+  String _detail(Object e) {
+    final code = MfaService.errorCode(e);
+    if (code != e.runtimeType.toString()) return '（$code）';
+    final message = MfaService.errorMessage(e);
+    return message == null ? '' : '（$message）';
   }
 
   Future<void> _completeEnrollment() async {
@@ -239,6 +354,9 @@ class _MfaSettingsScreenState extends State<MfaSettingsScreen> {
                   ],
                   if (_enrolled)
                     _buildEnrolledView()
+                  else if (!_emailVerified)
+                    // メールアドレスの確認が済むまでは二要素認証を登録できない
+                    _buildEmailVerificationView()
                   else if (_enrollment != null)
                     _buildEnrollmentSteps()
                   else
@@ -246,6 +364,104 @@ class _MfaSettingsScreenState extends State<MfaSettingsScreen> {
                 ],
               ),
             ),
+    );
+  }
+
+  /// メールアドレス未確認のときの画面。
+  /// Firebaseの仕様上、確認が済むまで二要素認証は登録できない。
+  Widget _buildEmailVerificationView() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.orange.shade50,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.orange.shade200),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.mark_email_unread_outlined, color: Colors.orange[800]),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'はじめに、メールアドレスの確認が必要です',
+                  style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange[900]),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        Text(
+          '二要素認証は「${widget.accountName}」に紐づけて設定します。\n'
+          'ご本人のアドレスであることを確認してからでないと設定できません。',
+          style: const TextStyle(fontSize: 13.5, height: 1.6),
+        ),
+        const SizedBox(height: 20),
+
+        if (!_verificationSent) ...[
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _submitting ? null : _sendVerification,
+              icon: const Icon(Icons.send_outlined),
+              label: const Text('確認メールを送る'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+            ),
+          ),
+        ] else ...[
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('確認メールを送りました',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
+                SizedBox(height: 8),
+                Text(
+                  'メール内のリンクを開いたあと、下の「確認できたか見る」を押してください。\n'
+                  'メールが見当たらない場合は、迷惑メールフォルダもご確認ください。',
+                  style: TextStyle(fontSize: 12.5, height: 1.6),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _submitting ? null : _refresh,
+              icon: const Icon(Icons.refresh),
+              label: const Text('確認できたか見る'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Center(
+            child: TextButton(
+              onPressed: _submitting ? null : _sendVerification,
+              child: const Text('メールをもう一度送る'),
+            ),
+          ),
+        ],
+      ],
     );
   }
 
@@ -312,9 +528,31 @@ class _MfaSettingsScreenState extends State<MfaSettingsScreen> {
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
         const SizedBox(height: 8),
         const Text(
-          '認証アプリで「アカウントを追加」→「キーを手動入力」を選び、'
-          '下のキーをそのまま入力してください。',
+          '認証アプリの「＋」から読み取り画面を開き、下のQRコードを写してください。',
           style: TextStyle(fontSize: 13, height: 1.6),
+        ),
+        const SizedBox(height: 12),
+        Center(
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border.all(color: Colors.grey.shade300),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: QrImageView(
+              data: e.qrCodeUrl,
+              version: QrVersions.auto,
+              size: 180,
+              backgroundColor: Colors.white,
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        const Text(
+          'この画面をスマートフォンで見ているなど、カメラで写せないときは、'
+          '「キーを手動入力」を選んで下の文字列を貼り付けてください。',
+          style: TextStyle(fontSize: 12, color: Colors.black54, height: 1.6),
         ),
         const SizedBox(height: 12),
         Container(

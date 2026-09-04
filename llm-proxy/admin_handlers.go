@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -53,7 +54,25 @@ func (s *server) adminFetchDrugLabelHandler(w http.ResponseWriter, r *http.Reque
 		searchName = req.GenericName
 	}
 
-	html, sourceURL, fetchErr := FetchAttachmentDocument(searchName)
+	// **一般名で先に引く**。販売名は補助。
+	//
+	// 以前は「PMDA検索は一般名より販売名の方がヒットしやすい」という前提で
+	// 販売名だけを使っていたが、逆だった。実測(pmda_live_probe_test.go)では
+	//   「クラリスロマイシン錠２００ｍｇ「大正」」 → 該当なし
+	//   「クラリスロマイシン錠200mg「大正」」    → 該当なし(全角/半角の問題ではない)
+	//   「クラリスロマイシン」                     → 該当あり
+	// で、販売名しか試さなかったために5回失敗し、手動登録待ちに積まれていた。
+	// 手帳に書かれる販売名の表記はメーカーごとにぶれる一方、一般名は安定している。
+	//
+	// 販売名を捨てないのは、一般名の解決に失敗した薬剤が販売名のまま
+	// genericName に入っていることがあるため(例: drug_knowledge_base の
+	// 「ロキソニン錠60mg」)。その場合は販売名側でしか引けない。
+	html, sourceURL, fetchErr := FetchAttachmentDocument(req.GenericName)
+	if fetchErr != nil && searchName != req.GenericName {
+		if html2, sourceURL2, err2 := FetchAttachmentDocument(searchName); err2 == nil {
+			html, sourceURL, fetchErr = html2, sourceURL2, nil
+		}
+	}
 	if fetchErr != nil {
 		recordManualNeeded(s.firestore, req.GenericName, "", "", fetchErr.Error())
 		writeJSON(w, http.StatusOK, map[string]interface{}{
@@ -107,5 +126,71 @@ func (s *server) adminFetchDrugLabelHandler(w http.ResponseWriter, r *http.Reque
 		"sectionCount":  len(sections),
 		"formatVersion": formatVersion,
 		"sourceUrl":     sourceURL,
+	})
+}
+
+// adminParseLabelTextRequest は管理画面の手動登録で、添付文書PDFから
+// ブラウザ側(pdf.js)が抜き出したプレーンテキストを受け取る。
+//
+// PDFそのものはサーバーへ送らない。抽出はブラウザ内で完結させ、ここへ来るのは
+// テキストだけにしてある。医療情報の移動範囲を最小にするためと、
+// プロキシを標準ライブラリのみで保つため(PDF解析ライブラリを足さずに済む)。
+type adminParseLabelTextRequest struct {
+	Text string `json:"text"`
+}
+
+// adminParseLabelTextHandler は添付文書のプレーンテキストを章立てに分割して返す。
+// POST /v1/admin/parse-label-text (管理者専用)
+//
+// これまで手動登録は、管理者が5つの入力欄へPDFから章を1つずつ手で貼り付ける形だった。
+// 分割そのものは自動取得側と同じ ChunkAttachmentDocument で済むので、それを
+// 手動経路からも呼べるようにする。自動と手動で分割ロジックが分岐しないことが重要
+// —— 同じ添付文書から取り込み経路によって別の結果が出るのは避けたい。
+//
+// **保存はしない**。返すのは分割結果だけで、Firestoreへ書くかどうかは
+// 管理者が画面で中身を確認してから決める。抽出の取りこぼしや誤検出が
+// そのまま保存されると、後段の注意点表示が黙って間違う。
+func (s *server) adminParseLabelTextHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "POSTのみ対応しています")
+		return
+	}
+	if s.firestore == nil {
+		writeError(w, http.StatusServiceUnavailable, "Firestoreが利用できません(GOOGLE_APPLICATION_CREDENTIALS未設定)")
+		return
+	}
+
+	uid, _ := r.Context().Value(uidContextKey).(string)
+	admin, err := isAdminUser(s.firestore, uid)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "権限確認に失敗しました: "+err.Error())
+		return
+	}
+	if !admin {
+		writeError(w, http.StatusForbidden, "管理者権限が必要です")
+		return
+	}
+
+	var req adminParseLabelTextRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.Text) == "" {
+		writeError(w, http.StatusBadRequest, "text は必須です")
+		return
+	}
+
+	sections, formatVersion := ChunkAttachmentDocument(req.Text)
+
+	sectionsField := make(map[string]interface{}, len(sections))
+	for category, section := range sections {
+		sectionsField[category] = map[string]interface{}{
+			"sectionNumber": section.SectionNumber,
+			"sectionTitle":  section.SectionTitle,
+			"text":          section.Text,
+		}
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"success":       len(sections) > 0,
+		"formatVersion": formatVersion,
+		"sections":      sectionsField,
 	})
 }

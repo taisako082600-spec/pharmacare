@@ -1,4 +1,5 @@
 ﻿import 'package:flutter/material.dart';
+import '../theme/app_theme.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user_model.dart';
 
@@ -86,14 +87,9 @@ class _ChatScreenState extends State<ChatScreen> {
     Future.delayed(const Duration(milliseconds: 150), () => _scrollToBottom(animate: true));
   }
 
-  Color _roleColor(String role) {
-    switch (role) {
-      case '薬剤師': return const Color(0xFF1976D2);
-      case '介護士': return const Color(0xFF388E3C);
-      case '看護師': return const Color(0xFFD32F2F);
-      default: return const Color(0xFF607D8B);
-    }
-  }
+  /// 発言者の立場を示す色。ここは意味を持つ色なので残す。
+  /// ただし独自の原色ではなく、アプリ共通の(彩度を落とした)ロール色を使う。
+  Color _roleColor(String role) => AppTheme.roleColor(role);
 
   String _formatTime(Timestamp? ts) {
     if (ts == null) return '';
@@ -117,9 +113,11 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFECEFF1),
+      backgroundColor: AppTheme.canvas,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF1976D2),
+        // ヘッダーは全画面で濃紺に統一する。
+        // 差し色(accentDeep)は自分の吹き出しなど、操作や主体を示す側で使う。
+        backgroundColor: AppTheme.ink,
         foregroundColor: Colors.white,
         elevation: 0,
         titleSpacing: 0,
@@ -289,7 +287,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                         child: Container(
                                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                                           decoration: BoxDecoration(
-                                            color: isMe ? const Color(0xFF1976D2) : Colors.white,
+                                            color: isMe ? AppTheme.accentDeep : Colors.white,
                                             borderRadius: BorderRadius.only(
                                               topLeft: const Radius.circular(18),
                                               topRight: const Radius.circular(18),
@@ -343,7 +341,7 @@ class _ChatScreenState extends State<ChatScreen> {
                         hintText: 'メッセージを入力...',
                         hintStyle: const TextStyle(color: Colors.black38),
                         filled: true,
-                        fillColor: const Color(0xFFF5F5F5),
+                        fillColor: AppTheme.canvas,
                         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(24),
@@ -357,7 +355,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     onTap: _sendMessage,
                     child: Container(
                       padding: const EdgeInsets.all(12),
-                      decoration: const BoxDecoration(color: Color(0xFF1976D2), shape: BoxShape.circle),
+                      decoration: const BoxDecoration(color: AppTheme.accentDeep, shape: BoxShape.circle),
                       child: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
                     ),
                   ),

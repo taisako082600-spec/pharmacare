@@ -47,12 +47,23 @@ func DetermineTriageResult(symptomCategory string, redFlags map[string]bool, con
 	return "otc_suitable", false
 }
 
-// vitalsLowSpO2Threshold未満のSpO2、またはheadacheカテゴリでのvitalsSevereHypertensionThreshold
-// 以上の収縮期血圧は、チェックボックスでの自己申告に頼らずバイタル実測値から自動的に
-// redFlags相当のサインとして扱う(design_notes.mdの「SpO2 90%未満」「拍動性頭痛+高度高血圧」に対応)。
+// バイタル実測値は、チェックボックスでの自己申告に頼らず自動的にredFlags相当の
+// サインとして扱う。
+//
+//   - SpO2 90%未満:      低酸素血症。カテゴリを問わない
+//   - 収縮期血圧 180以上: headacheカテゴリのみ。高血圧脳症を疑う
+//   - 収縮期血圧 100以下: カテゴリを問わない。ショック/qSOFA項目
+//
+// 低血圧のしきい値100mmHgは、書籍1『アルゴリズムで考える 薬剤師の臨床判断』発熱章が
+// 敗血症のスクリーニングとして挙げるqSOFA(収縮期血圧≦100mmHg・呼吸数>22回/分・
+// 意識変容のうち2項目以上)に由来する。同書では「ショック」が発熱・腹痛・腰痛・下痢・
+// 意識障害など多くの症候で「見逃してはいけない緊急性の高い疾患」の徴候として繰り返し
+// 挙げられているため、本アプリでは2項目を待たず収縮期血圧単独でも危険信号として扱う
+// (トリアージは安全側に倒す)。
 const (
 	vitalsLowSpO2Threshold           = 90.0
 	vitalsSevereHypertensionSystolic = 180.0
+	vitalsHypotensionSystolic        = 100.0
 )
 
 // ApplyVitalsRedFlags はバイタル実測値(SpO2・収縮期血圧)から自動的にredFlagsへ合成する。
@@ -66,6 +77,9 @@ func ApplyVitalsRedFlags(symptomCategory string, redFlags map[string]bool, spo2 
 	}
 	if bpSystolic != nil && *bpSystolic >= vitalsSevereHypertensionSystolic && symptomCategory == "headache" {
 		redFlags["vitalsSevereHypertension"] = true
+	}
+	if bpSystolic != nil && *bpSystolic <= vitalsHypotensionSystolic {
+		redFlags["vitalsHypotension"] = true
 	}
 	return redFlags
 }

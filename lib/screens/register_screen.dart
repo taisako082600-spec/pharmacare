@@ -1,12 +1,13 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/auth_service.dart';
+import '../services/invite_code.dart';
 import '../services/password_policy.dart';
 import '../models/user_model.dart';
 import 'main_shell.dart';
+import 'mfa_required_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -119,6 +120,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
           'phone': _facilityPhoneController.text.trim(),
           'pharmacistIds': [],
           'adminUids': [cred.user!.uid],
+          // firestore.rules の facilities の create は createdBy が自分であることを
+          // 要求しているが、ここで書いていなかったため**新規施設の作成が拒否されていた**
+          // (2026-08-27に判明)。users のルールが「自分が作った施設なら所属してよい」を
+          // 判定する根拠にもなるので、必ず書く。
+          'createdBy': cred.user!.uid,
           'createdAt': FieldValue.serverTimestamp(),
         });
         facilityId = facilityRef.id;
@@ -131,14 +137,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
         });
 
         // 招待コードを自動発行
-        final code = _generateCode();
-        await FirebaseFirestore.instance.collection('invite_codes').add({
+        final code = InviteCode.generate();
+        await FirebaseFirestore.instance.collection('invite_codes').doc(code).set({
           'code': code,
           'facilityId': facilityId,
           'facilityName': facilityName,
           'used': false,
           'expiresAt': Timestamp.fromDate(DateTime.now().add(const Duration(hours: 24))),
           'createdAt': FieldValue.serverTimestamp(),
+          'createdBy': cred.user!.uid,
         });
 
         if (!mounted) return;
@@ -150,6 +157,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           facilityId: facilityId,
           email: email,
           facilityIds: [facilityId],
+          mfaRequired: _selectedRole != '家族',
         );
 
         // 招待コードをダイアログで表示してからメイン画面へ
@@ -168,7 +176,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
                   decoration: BoxDecoration(color: const Color(0xFFE3F2FD), borderRadius: BorderRadius.circular(12)),
-                  child: Text(code, style: const TextStyle(fontSize: 36, fontWeight: FontWeight.bold, letterSpacing: 10, color: Color(0xFF1976D2))),
+                  child: Text(InviteCode.formatForDisplay(code),
+                      style: const TextStyle(fontSize: 30, fontWeight: FontWeight.bold, letterSpacing: 3, color: Color(0xFF1976D2))),
                 ),
                 const SizedBox(height: 8),
                 const Text('このコードを同僚スタッフに共有してください。\n有効期限：24時間', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: Colors.black54)),
@@ -191,12 +200,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
         );
 
         if (!mounted) return;
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => MainShell(user: user)));
+        _goAfterSignUp(user);
 
       } else {
         // 招待コードで参加（介護士・看護師・薬剤師共通）
         facilityId = _selectedFacilityId ?? '';
         facilityName = _selectedFacilityName ?? '';
+
+        final inviteCode = InviteCode.normalize(_inviteCodeController.text);
 
         final cred = await _authService.signUp(
           email: email,
@@ -205,18 +216,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
           role: _selectedRole,
           facilityName: facilityName,
           facilityId: facilityId,
+          // 施設に所属した状態でユーザーを作るため、その所属が正当であることを
+          // ルール側が確かめられるよう、使った招待コードを一緒に残す。
+          joinedWithCode: inviteCode,
         );
 
-        // 招待コードを使用済みに + 施設に追加
-        final codeSnap = await FirebaseFirestore.instance
-            .collection('invite_codes')
-            .where('code', isEqualTo: _inviteCodeController.text.trim())
-            .where('used', isEqualTo: false)
-            .get();
+        // 招待コードを使用済みに + 施設に追加。
+        // ドキュメントIDがコード文字列そのものなので、クエリではなくID指定で引く
+        // (firestore.rules の users が get() で同じドキュメントを照合している)。
+        final codeRef =
+            FirebaseFirestore.instance.collection('invite_codes').doc(inviteCode);
+        final codeDoc = await codeRef.get();
 
-        if (codeSnap.docs.isNotEmpty) {
+        if (codeDoc.exists && codeDoc.data()?['used'] != true) {
           final batch = FirebaseFirestore.instance.batch();
-          batch.update(codeSnap.docs.first.reference, {
+          batch.update(codeRef, {
             'used': true,
             'usedBy': cred.user!.uid,
             'usedAt': FieldValue.serverTimestamp(),
@@ -240,8 +254,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
           email: email,
           facilityIds: [facilityId],
           linkedPatientId: _linkedPatientId ?? '',
+          mfaRequired: _selectedRole != '家族',
         );
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => MainShell(user: user)));
+        _goAfterSignUp(user);
       }
     } on FirebaseAuthException catch (e) {
       // Auth登録失敗 → 施設は未作成なのでロールバック不要
@@ -286,33 +301,44 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
-  String _generateCode() {
-    final rand = Random.secure();
-    return List.generate(6, (_) => rand.nextInt(10)).join();
+  /// 登録完了後の遷移先。
+  ///
+  /// 職員アカウントは二要素認証の設定を済ませてからでないとアプリ本体に入れない。
+  /// 「作成時に必須」にしておけば、未登録のまま運用に入るアカウントが生まれず、
+  /// 後から一律必須へ切り替えるときに誰も締め出されない。
+  void _goAfterSignUp(UserModel user) {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => user.mfaRequired
+            ? MfaRequiredScreen(user: user)
+            : MainShell(user: user),
+      ),
+    );
   }
 
   Future<void> _verifyCode() async {
-    final code = _inviteCodeController.text.trim();
-    if (code.length != 6) {
-      setState(() => _error = '6桁のコードを入力してください');
+    // 表示は ABCD-EFGH と区切っているので、ハイフンごと写されることを前提に正規化する。
+    final code = InviteCode.normalize(_inviteCodeController.text);
+    if (!InviteCode.isPlausible(code)) {
+      setState(() => _error = '招待コードの形式が違います。受け取ったとおりに入力してください');
       return;
     }
     setState(() { _loading = true; _error = null; });
 
     try {
       final now = Timestamp.now();
-      final snap = await FirebaseFirestore.instance
-          .collection('invite_codes')
-          .where('code', isEqualTo: code)
-          .where('used', isEqualTo: false)
-          .get();
+      // ドキュメントIDがコード文字列そのものなのでID指定で引く。
+      // ここはサインイン前に走るため、firestore.rules 側も invite_codes の
+      // get だけは無条件に許可している(list は施設関係者限定)。
+      final doc =
+          await FirebaseFirestore.instance.collection('invite_codes').doc(code).get();
+      final data = doc.data();
 
-      if (snap.docs.isEmpty) {
+      if (!doc.exists || data == null || data['used'] == true) {
         setState(() { _error = 'コードが見つかりません。再確認してください。'; _loading = false; });
         return;
       }
-
-      final data = snap.docs.first.data();
       final expiresAt = data['expiresAt'] as Timestamp;
       if (now.compareTo(expiresAt) > 0) {
         setState(() { _error = 'コードの有効期限が切れています。新しいコードを発行してもらってください。'; _loading = false; });
@@ -608,11 +634,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
             Expanded(
               child: TextField(
                 controller: _inviteCodeController,
-                keyboardType: TextInputType.number,
-                maxLength: 6,
+                // 英数字混在になったので数字キーボードにしない。
+                // 小文字・ハイフン・全角は InviteCode.normalize が吸収する。
+                textCapitalization: TextCapitalization.characters,
+                maxLength: InviteCode.inputMaxLength,
                 enabled: !_codeVerified,
                 decoration: InputDecoration(
-                  labelText: '6桁の招待コード',
+                  labelText: '招待コード（例 ABCD-EFGH）',
                   prefixIcon: const Icon(Icons.lock_outline),
                   counterText: '',
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),

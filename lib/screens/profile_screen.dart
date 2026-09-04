@@ -1,8 +1,9 @@
-﻿import 'dart:math';
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user_model.dart';
+import '../services/invite_code.dart';
+import 'facility_audit_log_screen.dart';
 import '../services/auth_service.dart';
 import 'login_screen.dart';
 import 'mfa_screens.dart';
@@ -102,6 +103,24 @@ class ProfileScreen extends StatelessWidget {
                         );
                       },
                     ),
+                    // 施設に属している人だけに出す。ガイドライン17①の
+                    // 「定期的に確認すること」は施設が果たすものなので、
+                    // 導線が無いと果たしようがない。
+                    if (user.facilityId.isNotEmpty) ...[
+                      const Divider(height: 1, indent: 56),
+                      _MenuItem(
+                        icon: Icons.history_outlined,
+                        label: '操作履歴を確認',
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => FacilityAuditLogScreen(user: user),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
                     const Divider(height: 1, indent: 56),
                     _MenuItem(icon: Icons.help_outline, label: 'ヘルプ・お問い合わせ', onTap: () {}),
                     const Divider(height: 1, indent: 56),
@@ -165,17 +184,14 @@ class _InviteCodeTile extends StatelessWidget {
   final UserModel user;
   const _InviteCodeTile({required this.user});
 
-  String _generateCode() {
-    final rand = Random.secure();
-    return List.generate(6, (_) => rand.nextInt(10)).join();
-  }
-
   Future<void> _issueCode(BuildContext context) async {
-    final code = _generateCode();
-    await FirebaseFirestore.instance.collection('invite_codes').add({
+    final code = InviteCode.generate();
+    // ドキュメントIDはコード文字列そのもの(firestore.rules が get() で照合するため)。
+    await FirebaseFirestore.instance.collection('invite_codes').doc(code).set({
       'code': code,
       'facilityId': user.facilityId,
       'facilityName': user.facilityName,
+      'createdBy': user.uid,
       'used': false,
       'expiresAt': Timestamp.fromDate(DateTime.now().add(const Duration(hours: 24))),
       'createdAt': FieldValue.serverTimestamp(),
@@ -194,7 +210,8 @@ class _InviteCodeTile extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
               decoration: BoxDecoration(color: const Color(0xFFE3F2FD), borderRadius: BorderRadius.circular(12)),
-              child: Text(code, style: const TextStyle(fontSize: 36, fontWeight: FontWeight.bold, letterSpacing: 10, color: Color(0xFF1976D2))),
+              child: Text(InviteCode.formatForDisplay(code),
+                  style: const TextStyle(fontSize: 30, fontWeight: FontWeight.bold, letterSpacing: 3, color: Color(0xFF1976D2))),
             ),
             const SizedBox(height: 8),
             const Text('有効期限：24時間', style: TextStyle(fontSize: 12, color: Colors.black54)),

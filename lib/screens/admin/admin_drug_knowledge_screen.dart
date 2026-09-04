@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../models/user_model.dart';
 import '../../services/ai_drug_service.dart';
+import '../../services/pdf_label_import_service.dart';
 
 /// 薬剤知識ベース管理画面（②医薬品注意点表示 B案）。
 /// 3つのキューをタブで管理する:
@@ -200,41 +201,129 @@ class _ManualLabelNeededTab extends StatelessWidget {
     final controllers = {
       for (final key in _categoryLabels.keys) key: TextEditingController(),
     };
+    // PDF由来かどうかを保存時に残す。後から「この記載はどこから来たか」を
+    // 辿れないと、内容を疑ったときに確かめようがなくなる。
+    String? sourceFileName;
 
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: Text('「$genericName」の添付文書を手動登録'),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  '添付文書の該当セクションをそのまま貼り付けてください（空欄のセクションは「記載なし」として扱われます）',
-                  style: TextStyle(fontSize: 12, color: Colors.black54),
-                ),
-                const SizedBox(height: 12),
-                for (final entry in _categoryLabels.entries) ...[
-                  Text(entry.value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                  const SizedBox(height: 4),
-                  TextField(
-                    controller: controllers[entry.key],
-                    maxLines: 3,
-                    decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true),
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) {
+          var importing = false;
+
+          // PDFを選ばせ、抽出したテキストをサーバーで章分割し、入力欄へ下書きとして入れる。
+          // 保存はしない。埋まった内容を管理者が確認してから「保存」を押す。
+          Future<void> importPdf() async {
+            setDialogState(() => importing = true);
+            try {
+              final picked = await PdfLabelImportService.pick();
+              if (picked == null) {
+                setDialogState(() => importing = false);
+                return;
+              }
+              if (picked.text.trim().isEmpty) {
+                setDialogState(() => importing = false);
+                if (!dialogContext.mounted) return;
+                ScaffoldMessenger.of(dialogContext).showSnackBar(
+                  const SnackBar(
+                    content: Text('このPDFから文字を読み取れませんでした。'
+                        'スキャン画像のPDFの可能性があります（文字情報を持つPDFが必要です）'),
+                    backgroundColor: Colors.red,
                   ),
-                  const SizedBox(height: 12),
-                ],
-              ],
+                );
+                return;
+              }
+
+              final parsed = await AiDrugService().adminParseLabelText(text: picked.text);
+              final sections = parsed['sections'];
+              var filled = 0;
+              if (sections is Map) {
+                for (final key in _categoryLabels.keys) {
+                  final section = sections[key];
+                  if (section is Map && section['text'] is String) {
+                    final text = (section['text'] as String).trim();
+                    if (text.isEmpty) continue;
+                    controllers[key]!.text = text;
+                    filled++;
+                  }
+                }
+              }
+
+              sourceFileName = picked.fileName;
+              setDialogState(() => importing = false);
+              if (!dialogContext.mounted) return;
+              ScaffoldMessenger.of(dialogContext).showSnackBar(
+                SnackBar(
+                  content: Text(filled > 0
+                      ? '$filled 件のセクションを読み込みました。内容を確認してから保存してください'
+                      : '章立てを判別できませんでした。手で貼り付けてください'
+                          '（${parsed['reason'] ?? '該当する章が見つかりません'}）'),
+                  backgroundColor: filled > 0 ? Colors.green : Colors.orange,
+                  duration: const Duration(seconds: 5),
+                ),
+              );
+            } catch (e) {
+              setDialogState(() => importing = false);
+              if (!dialogContext.mounted) return;
+              ScaffoldMessenger.of(dialogContext).showSnackBar(
+                SnackBar(content: Text('PDFの読み込みに失敗しました: $e'), backgroundColor: Colors.red),
+              );
+            }
+          }
+
+          return AlertDialog(
+            title: Text('「$genericName」の添付文書を手動登録'),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: importing ? null : importPdf,
+                      icon: importing
+                          ? const SizedBox(
+                              width: 16, height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.picture_as_pdf_outlined),
+                      label: Text(importing ? '読み込み中…' : '添付文書PDFから読み込む'),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      sourceFileName == null
+                          ? 'PDFを選ぶと、該当する章を下の欄に下書きとして入れます。'
+                              'PDFはこの端末の中だけで処理し、サーバーへは送りません。'
+                          : '読み込み元: $sourceFileName',
+                      style: const TextStyle(fontSize: 11, color: Colors.black54),
+                    ),
+                    const Divider(height: 24),
+                    const Text(
+                      '添付文書の該当セクションをそのまま貼り付けてください（空欄のセクションは「記載なし」として扱われます）',
+                      style: TextStyle(fontSize: 12, color: Colors.black54),
+                    ),
+                    const SizedBox(height: 12),
+                    for (final entry in _categoryLabels.entries) ...[
+                      Text(entry.value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                      const SizedBox(height: 4),
+                      TextField(
+                        controller: controllers[entry.key],
+                        maxLines: 3,
+                        decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                  ],
+                ),
+              ),
             ),
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('キャンセル')),
-          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('保存')),
-        ],
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('キャンセル')),
+              ElevatedButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('保存')),
+            ],
+          );
+        },
       ),
     );
 
@@ -263,7 +352,9 @@ class _ManualLabelNeededTab extends StatelessWidget {
     await FirebaseFirestore.instance.collection('drug_knowledge_base').doc(genericName).set({
       'genericName': genericName,
       'status': 'complete',
-      'formatVersion': 'manual',
+      // 手入力とPDF取り込みを区別する。内容を疑ったときに、元のPDFへ戻れるようにしておく。
+      'formatVersion': sourceFileName == null ? 'manual' : 'manual_pdf',
+      if (sourceFileName != null) 'sourceFileName': sourceFileName,
       'sections': sections,
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));

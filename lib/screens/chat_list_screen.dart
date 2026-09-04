@@ -1,4 +1,5 @@
 ﻿import 'package:flutter/material.dart';
+import '../theme/app_theme.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user_model.dart';
 import 'chat_screen.dart';
@@ -10,9 +11,9 @@ class ChatListScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
+      backgroundColor: AppTheme.canvas,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF1976D2),
+        backgroundColor: AppTheme.ink,
         foregroundColor: Colors.white,
         title: const Text('チャット'),
         elevation: 0,
@@ -51,7 +52,7 @@ class _FacilityChatList extends StatelessWidget {
               name: '全体連絡',
               subtitle: '施設スタッフ・担当薬剤師',
               icon: Icons.groups_rounded,
-              color: const Color(0xFF1976D2),
+              color: AppTheme.accentDeep,
               user: user,
             ),
             if (pharmacistIds.isNotEmpty) ...[
@@ -77,7 +78,7 @@ class _FacilityChatList extends StatelessWidget {
                         name: pd['name'] ?? '薬剤師',
                         subtitle: '薬剤師との個別相談',
                         icon: Icons.local_pharmacy_rounded,
-                        color: const Color(0xFF1976D2),
+                        color: AppTheme.accentDeep,
                         user: user,
                       );
                     }).toList(),
@@ -130,7 +131,7 @@ class _FacilityChatList extends StatelessWidget {
                           ? '${pd['roomNumber']} · 入居者相談'
                           : '入居者相談',
                       icon: Icons.person_rounded,
-                      color: const Color(0xFF388E3C),
+                      color: AppTheme.accentDeep,
                       user: user,
                     );
                   }).toList(),
@@ -180,7 +181,7 @@ class _PharmacistChatList extends StatelessWidget {
                   name: '全体連絡',
                   subtitle: '$facilityName スタッフ全員',
                   icon: Icons.groups_rounded,
-                  color: const Color(0xFF1976D2),
+                  color: AppTheme.accentDeep,
                   user: user,
                 ),
                 _RoomTile(
@@ -188,7 +189,7 @@ class _PharmacistChatList extends StatelessWidget {
                   name: '個別相談',
                   subtitle: '$facilityName との直接相談',
                   icon: Icons.chat_bubble_rounded,
-                  color: const Color(0xFF388E3C),
+                  color: AppTheme.accentDeep,
                   user: user,
                 ),
                 // 入居者別
@@ -222,7 +223,7 @@ class _PharmacistChatList extends StatelessWidget {
                                 ? '${pd['roomNumber']} · 入居者相談'
                                 : '入居者相談',
                             icon: Icons.person_rounded,
-                            color: const Color(0xFF388E3C),
+                            color: AppTheme.accentDeep,
                             user: user,
                           );
                         }),

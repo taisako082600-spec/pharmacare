@@ -31,8 +31,43 @@ function patchBuildFiles() {
   indexHtml = indexHtml.replace(/DEPLOY_TIMESTAMP/g, TIMESTAMP);
   fs.writeFileSync(indexPath, indexHtml);
 
+  pruneOldBundles(newJsName);
+
   console.log(`Patched: main.dart.js → ${newJsName}`);
   return newJsName;
+}
+
+// 古い main.dart.{timestamp}.js を捨てる。
+//
+// 毎回コピーを作る一方で消していなかったため、build/web に83個・268MBが溜まり、
+// デプロイのたびに全部アップロードしていた(2026-08-22に発見。119ファイル→43ファイル)。
+//
+// index.html は no-cache 配信なので、読み込みのたびに最新の index.html が取れ、
+// そこから最新のバンドルだけが参照される。よって古い分は本来不要。
+// ただし既に開いたままのタブが直前のバンドルを掴んでいることはあるので、
+// 直前の1世代だけ残す。
+const KEEP_GENERATIONS = 1;
+
+function pruneOldBundles(currentName) {
+  const bundles = fs.readdirSync(BUILD_DIR)
+    .filter((f) => /^main\.dart\.\d+\.js$/.test(f) && f !== currentName)
+    .sort()
+    .reverse(); // 新しい順
+
+  const stale = bundles.slice(KEEP_GENERATIONS);
+  if (stale.length === 0) return;
+
+  let freed = 0;
+  for (const f of stale) {
+    const p = path.join(BUILD_DIR, f);
+    try {
+      freed += fs.statSync(p).size;
+      fs.unlinkSync(p);
+    } catch {
+      // 消せなくてもデプロイは続行する(次回また拾う)
+    }
+  }
+  console.log(`Pruned ${stale.length} old bundle(s), freed ${(freed / 1024 / 1024).toFixed(1)} MB`);
 }
 
 function httpsRequest(options, body) {
@@ -67,7 +102,40 @@ function getAllFiles(dir, base = dir) {
   return files;
 }
 
+// ビルド成果物に開発用の向き先が焼き込まれていないか確かめる。
+//
+// 2026-08-27: LLMプロキシのURLを --dart-define で渡す運用にしていたが、渡し忘れた
+// ビルドが本番に出て、全端末が自分自身の localhost:8081 を叩いていた。画面には
+// 「プロキシに接続できません」としか出ないので、実機のスクリーンショットを見るまで
+// 誰も気づけなかった。人が忘れうる手順は、デプロイ前に機械が止める。
+function assertNoDevEndpoints() {
+  // 見るのは flutter が今出力した main.dart.js ちょうど1つ。
+  // build/web には前回デプロイの main.dart.<timestamp>.js が残っていることがあり、
+  // パターン一致で拾うと古いコピーを検査してしまう(実際に踏んだ)。
+  const mainJs = 'main.dart.js';
+  const mainJsPath = path.join(BUILD_DIR, mainJs);
+  if (!fs.existsSync(mainJsPath)) {
+    throw new Error(`${mainJsPath} がありません。先に flutter build web を実行してください。`);
+  }
+
+  const code = fs.readFileSync(mainJsPath, 'utf8');
+  const found = ['localhost:8081', '127.0.0.1:8081'].filter((s) => code.includes(s));
+  if (found.length > 0) {
+    throw new Error(
+      `${mainJs} に開発用の向き先が残っています: ${found.join(', ')}\n` +
+        'この状態で配信すると、利用者の端末が自分自身のlocalhostを叩き、\n' +
+        'AI関連の機能が「プロキシに接続できません」で全滅します。\n' +
+        'lib/services/ai_drug_service.dart の _proxyBaseUrl を確認し、\n' +
+        '--dart-define=LLM_PROXY_URL を付けずに flutter build web し直してください。'
+    );
+  }
+  console.log(`Endpoint check OK (${mainJs})`);
+}
+
 async function deploy() {
+  // 開発用の向き先が混ざっていないかは、認証やアップロードより先に見る。
+  assertNoDevEndpoints();
+
   // 認証はビルド成果物に触る前に済ませる。順序を逆にすると、認証で失敗したときに
   // build/web だけ書き換わった中途半端な状態が残る(2026-08-16に鍵消失で実際に踏んだ)。
   console.log('Getting auth token...');

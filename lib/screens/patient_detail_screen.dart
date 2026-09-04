@@ -1,15 +1,63 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/patient_model.dart';
+import '../services/invite_code.dart';
 import '../models/user_model.dart';
 import '../services/ai_drug_service.dart';
 import '../services/audit_service.dart';
 import '../services/connectivity_guard.dart';
+import '../services/medical_record_print_service.dart';
+import '../theme/app_theme.dart';
 import 'chat_screen.dart';
 import 'qr_scanner_screen.dart';
 import 'otc_triage_form_screen.dart';
+
+/// 患者ドキュメントを更新し、変更前後の値を監査ログに残す。
+///
+/// 「医療情報を取り扱う情報システム・サービスの提供事業者における安全管理
+/// ガイドライン第2.0版」6.2 の電子保存の要求事項のうち**真正性**が、
+///
+///   > 改変又は消去の事実の有無**及びその内容**を確認することができる措置を講じ、
+///   > かつ、当該電磁的記録の作成に係る責任の所在を明らかにしていること
+///
+/// を求めているため。アレルギー・服薬上の特記事項・腎肝機能はいずれも
+/// 要配慮個人情報であり、かつ処方判断に直結するので、
+/// 「誰がいつ何をどう書き換えたか」を後から追えないと事故時に検証できない。
+///
+/// 変更前の値は [data] に含まれるキーだけに絞って記録する
+/// (無関係なフィールドまで監査ログに複製すると、要配慮個人情報の保管箇所が
+///  無用に増えるため)。
+Future<void> _updatePatientAudited(
+  PatientModel patient,
+  UserModel user,
+  Map<String, dynamic> data, {
+  required String reason,
+}) async {
+  final ref = FirebaseFirestore.instance.collection('patients').doc(patient.id);
+
+  final before = (await ref.get()).data();
+  final beforeSubset = before == null
+      ? null
+      : {
+          for (final key in data.keys)
+            if (before.containsKey(key)) key: before[key],
+        };
+
+  await ref.update(data);
+
+  await AuditService().log(
+    userId: user.uid,
+    userName: user.name,
+    action: AuditService.actionUpdate,
+    collection: 'patients',
+    documentId: patient.id,
+    facilityId: patient.facilityId,
+    beforeData: beforeSubset,
+    afterData: data,
+    reason: reason,
+  );
+}
 
 class PatientDetailScreen extends StatefulWidget {
   final PatientModel patient;
@@ -44,6 +92,31 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
     );
   }
 
+  /// 保管している医療情報を書面として出力する（見読性の要求事項）。
+  /// 出力自体が医療情報の持ち出しにあたるため、サービス側で監査ログに記録される。
+  Future<void> _printRecord(PatientModel patient) async {
+    final msg = ScaffoldMessenger.of(context);
+    try {
+      final opened = await MedicalRecordPrintService().printPatientRecord(
+        patient: patient,
+        user: widget.user,
+      );
+      if (!mounted) return;
+      if (!opened) {
+        msg.showSnackBar(const SnackBar(
+          content: Text('ポップアップがブロックされました。ブラウザの設定で許可してください'),
+          backgroundColor: Colors.orange,
+        ));
+      }
+    } catch (e) {
+      if (!mounted) return;
+      msg.showSnackBar(SnackBar(
+        content: Text('印刷用の書面を作成できませんでした: $e'),
+        backgroundColor: Colors.red,
+      ));
+    }
+  }
+
   @override
   void dispose() {
     _tabController.dispose();
@@ -66,11 +139,12 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
       code = existing.docs.first.get('code') as String;
     } else {
       // 新規発行
-      final rand = Random.secure();
-      code = List.generate(6, (_) => rand.nextInt(10)).join();
-      await FirebaseFirestore.instance.collection('invite_codes').add({
+      code = InviteCode.generate();
+      // ドキュメントIDはコード文字列そのもの(firestore.rules が get() で照合するため)。
+      await FirebaseFirestore.instance.collection('invite_codes').doc(code).set({
         'code': code,
         'type': 'family',
+        'createdBy': widget.user.uid,
         'patientId': patient.id,
         'patientName': patient.roomNumber.isNotEmpty ? patient.roomNumber : '患者',
         'facilityId': widget.user.facilityId,
@@ -87,7 +161,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
       builder: (_) => AlertDialog(
         title: const Row(
           children: [
-            Icon(Icons.family_restroom, color: Color(0xFF6A1B9A)),
+            Icon(Icons.family_restroom, color: AppTheme.accentDeep),
             SizedBox(width: 8),
             Text('家族共有コード'),
           ],
@@ -100,8 +174,9 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
             const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
-              decoration: BoxDecoration(color: const Color(0xFFF3E5F5), borderRadius: BorderRadius.circular(12)),
-              child: Text(code, style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold, letterSpacing: 12, color: Color(0xFF6A1B9A))),
+              decoration: BoxDecoration(color: AppTheme.canvas, borderRadius: BorderRadius.circular(12)),
+              child: Text(InviteCode.formatForDisplay(code),
+                  style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, letterSpacing: 4, color: AppTheme.accentDeep)),
             ),
             const SizedBox(height: 8),
             const Text('有効期限: 30日間', style: TextStyle(fontSize: 12, color: Colors.black38)),
@@ -113,7 +188,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
               Clipboard.setData(ClipboardData(text: code));
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('コードをコピーしました'), backgroundColor: Color(0xFF6A1B9A)),
+                const SnackBar(content: Text('コードをコピーしました'), backgroundColor: AppTheme.accentDeep),
               );
             },
             icon: const Icon(Icons.copy),
@@ -121,7 +196,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context),
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF6A1B9A), foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.accentDeep, foregroundColor: Colors.white),
             child: const Text('閉じる'),
           ),
         ],
@@ -171,7 +246,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                           message: '処方箋のQRコードを読み取ります',
                           child: IconButton(
                             icon: const Icon(Icons.qr_code_2,
-                                color: Color(0xFF1976D2)),
+                                color: AppTheme.accentDeep),
                             onPressed: () {
                               Navigator.pop(context);
                               Navigator.push(
@@ -203,9 +278,9 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                   decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8)),
                   child: const Row(
                     children: [
-                      Icon(Icons.info_outline, size: 16, color: Color(0xFF1976D2)),
+                      Icon(Icons.info_outline, size: 16, color: AppTheme.accentDeep),
                       SizedBox(width: 8),
-                      Expanded(child: Text('赤い * は必須項目です', style: TextStyle(fontSize: 12, color: Color(0xFF1976D2)))),
+                      Expanded(child: Text('赤い * は必須項目です', style: TextStyle(fontSize: 12, color: AppTheme.accentDeep))),
                     ],
                   ),
                 ),
@@ -230,7 +305,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                     child: Row(
                       children: [
                         const Icon(Icons.calendar_today,
-                            size: 16, color: Color(0xFF2E7D32)),
+                            size: 16, color: AppTheme.accentDeep),
                         const SizedBox(width: 8),
                         Text(
                           '受診日: ${visitDate.year}年${visitDate.month}月${visitDate.day}日',
@@ -267,7 +342,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                             horizontal: 10, vertical: 5),
                         decoration: BoxDecoration(
                           color: sel
-                              ? const Color(0xFF2E7D32)
+                              ? AppTheme.accentDeep
                               : Colors.grey.shade100,
                           borderRadius: BorderRadius.circular(16),
                         ),
@@ -357,7 +432,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                             label: Text(t, style: const TextStyle(fontSize: 11)),
                             selected: (med['timing'] as String) == t,
                             onSelected: (_) => setModalState(() => med['timing'] = t),
-                            selectedColor: const Color(0xFF1976D2),
+                            selectedColor: AppTheme.accentDeep,
                             labelStyle: TextStyle(
                                 color: (med['timing'] as String) == t ? Colors.white : Colors.black87,
                                 fontSize: 11),
@@ -400,8 +475,8 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                   icon: const Icon(Icons.add, size: 16),
                   label: const Text('薬を追加', style: TextStyle(fontSize: 13)),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF1976D2),
-                    side: const BorderSide(color: Color(0xFF1976D2)),
+                    foregroundColor: AppTheme.accentDeep,
+                    side: const BorderSide(color: AppTheme.accentDeep),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
                   ),
@@ -565,7 +640,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                       if (context.mounted) Navigator.pop(context);
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF2E7D32),
+                      backgroundColor: AppTheme.accentDeep,
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
@@ -590,7 +665,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
           return const Scaffold(
-            backgroundColor: Color(0xFFF5F7FA),
+            backgroundColor: AppTheme.canvas,
             body: Center(child: CircularProgressIndicator()),
           );
         }
@@ -598,7 +673,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
         // (hasDataはtrueのため、.data()のnon-nullキャストがそのまま例外落ちしていた)。
         if (!snapshot.data!.exists) {
           return Scaffold(
-            backgroundColor: const Color(0xFFF5F7FA),
+            backgroundColor: AppTheme.canvas,
             appBar: AppBar(title: const Text('入居者情報')),
             body: const Center(child: Text('この入居者は削除されました', style: TextStyle(color: Colors.black54))),
           );
@@ -623,23 +698,28 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
         final isPharmacist = widget.user.isPharmacist;
 
         return Scaffold(
-          backgroundColor: const Color(0xFFF5F7FA),
+          backgroundColor: AppTheme.canvas,
           body: NestedScrollView(
         headerSliverBuilder: (context, _) => [
           SliverAppBar(
             expandedHeight: 190,
             pinned: true,
-            backgroundColor: const Color(0xFF388E3C),
+            backgroundColor: AppTheme.ink,
             foregroundColor: Colors.white,
+            actions: [
+              // 見読性(書面作成)。事業者ガイドライン第2.0版 6.2 が、保存した
+              // 医療情報を「書面を作成できるようにすること」まで求めているため。
+              // 家族ロールは自分の家族の記録しか開けないので、そのまま出力を許す。
+              IconButton(
+                icon: const Icon(Icons.print_outlined),
+                tooltip: '記録を印刷',
+                onPressed: () => _printRecord(patient),
+              ),
+            ],
             flexibleSpace: FlexibleSpaceBar(
+              // グラデーションをやめ、ホーム・一覧と同じ濃紺の面に揃える。
               background: Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Color(0xFF2E7D32), Color(0xFF66BB6A)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                ),
+                color: AppTheme.ink,
                 child: SafeArea(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(20, 50, 20, 16),
@@ -650,7 +730,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                           backgroundColor: Colors.white,
                           child: _isPharmacist
                               ? const Icon(Icons.person_outline,
-                                  size: 36, color: Color(0xFF388E3C))
+                                  size: 36, color: AppTheme.ink)
                               : Text(
                                   patient.name.isNotEmpty
                                       ? patient.name[0]
@@ -658,7 +738,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                                   style: const TextStyle(
                                       fontSize: 26,
                                       fontWeight: FontWeight.bold,
-                                      color: Color(0xFF388E3C)),
+                                      color: AppTheme.ink),
                                 ),
                         ),
                         const SizedBox(width: 16),
@@ -754,7 +834,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
           children: [
             if (patient.allergies.isNotEmpty)
               Container(
-                color: const Color(0xFFB71C1C),
+                color: AppTheme.danger,
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                 child: Row(
                   children: [
@@ -817,7 +897,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
       floatingActionButton: isPharmacist
           ? FloatingActionButton.extended(
               onPressed: _showAddVisitDialog,
-              backgroundColor: const Color(0xFF1976D2),
+              backgroundColor: AppTheme.accentDeep,
               icon: const Icon(Icons.add, color: Colors.white),
               label: const Text('受診を記録',
                   style: TextStyle(color: Colors.white)),
@@ -997,6 +1077,20 @@ class _VisitCard extends StatefulWidget {
 }
 
 class _VisitCardState extends State<_VisitCard> {
+  /// 服薬注意点を見せる相手。
+  ///
+  /// 以前は薬剤師だけに出していたが、それでは意味がない。
+  /// 「ふらつきやすい」「低血糖に注意」といった添付文書由来の注意点は、
+  /// 毎日そばにいて最初に異変に気づく介護士・看護師のための情報であり、
+  /// 薬剤師は数字と薬歴から判断できる。観察する人に渡らなければ、
+  /// 副作用の早期発見という目的自体が果たせない。
+  ///
+  /// 家族ロールは対象外にしている。閲覧専用で記録を残す手段が無いうえ、
+  /// 添付文書の警告をそのまま渡すと、不安をあおったり自己判断での中止に
+  /// つながりかねないため。相談導線(チャット)を経由してもらう。
+  bool get _canSeeCautions =>
+      widget.user.isPharmacist || widget.user.isCareWorker;
+
   bool _cautionLoading = false;
   List<dynamic> _cautionDrugs = [];
   String _cautionMergedSummary = '';
@@ -1075,7 +1169,7 @@ class _VisitCardState extends State<_VisitCard> {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.edit, color: Color(0xFF1976D2)),
+                    const Icon(Icons.edit, color: AppTheme.accentDeep),
                     const SizedBox(width: 8),
                     const Text('受診情報を編集', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                     const Spacer(),
@@ -1092,7 +1186,7 @@ class _VisitCardState extends State<_VisitCard> {
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(10)),
                     child: Row(children: [
-                      const Icon(Icons.calendar_today, size: 16, color: Color(0xFF2E7D32)),
+                      const Icon(Icons.calendar_today, size: 16, color: AppTheme.accentDeep),
                       const SizedBox(width: 8),
                       Text('受診日: ${date.year}年${date.month}月${date.day}日'),
                       const Spacer(),
@@ -1112,7 +1206,7 @@ class _VisitCardState extends State<_VisitCard> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                         decoration: BoxDecoration(
-                          color: sel ? const Color(0xFF2E7D32) : Colors.grey.shade100,
+                          color: sel ? AppTheme.accentDeep : Colors.grey.shade100,
                           borderRadius: BorderRadius.circular(16),
                         ),
                         child: Text(d, style: TextStyle(fontSize: 12, color: sel ? Colors.white : Colors.black87)),
@@ -1151,7 +1245,7 @@ class _VisitCardState extends State<_VisitCard> {
                   width: double.infinity, height: 48,
                   child: ElevatedButton(
                     onPressed: () => Navigator.pop(ctx, true),
-                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1976D2), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                    style: ElevatedButton.styleFrom(backgroundColor: AppTheme.accentDeep, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
                     child: const Text('更新する', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   ),
                 ),
@@ -1327,7 +1421,7 @@ class _VisitCardState extends State<_VisitCard> {
           Container(
             padding: const EdgeInsets.all(14),
             decoration: const BoxDecoration(
-              color: Color(0xFFE8F5E9),
+              color: AppTheme.canvas,
               borderRadius:
                   BorderRadius.vertical(top: Radius.circular(16)),
             ),
@@ -1337,7 +1431,7 @@ class _VisitCardState extends State<_VisitCard> {
                 Row(
                   children: [
                     const Icon(Icons.local_hospital,
-                        size: 16, color: Color(0xFF2E7D32)),
+                        size: 16, color: AppTheme.accentDeep),
                     const SizedBox(width: 6),
                     Text(
                       visitDate != null
@@ -1346,7 +1440,7 @@ class _VisitCardState extends State<_VisitCard> {
                       style: const TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 14,
-                          color: Color(0xFF2E7D32)),
+                          color: AppTheme.accentDeep),
                     ),
                     if (department.isNotEmpty) ...[
                       const SizedBox(width: 8),
@@ -1354,7 +1448,7 @@ class _VisitCardState extends State<_VisitCard> {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 8, vertical: 2),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF2E7D32),
+                          color: AppTheme.accentDeep,
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(department,
@@ -1402,13 +1496,13 @@ class _VisitCardState extends State<_VisitCard> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Icon(Icons.comment_outlined,
-                            size: 13, color: Color(0xFF1976D2)),
+                            size: 13, color: AppTheme.accentDeep),
                         const SizedBox(width: 4),
                         Expanded(
                           child: Text(pharmacistNote,
                               style: const TextStyle(
                                   fontSize: 12,
-                                  color: Color(0xFF1976D2))),
+                                  color: AppTheme.accentDeep)),
                         ),
                       ],
                     ),
@@ -1431,7 +1525,7 @@ class _VisitCardState extends State<_VisitCard> {
                   .where((n) => n.isNotEmpty)
                   .toList();
 
-              if (widget.isPharmacist) _maybeAutoFetchCautions(medicineNames);
+              if (_canSeeCautions) _maybeAutoFetchCautions(medicineNames);
 
               if (!medSnap.hasData) {
                 return const Padding(
@@ -1543,8 +1637,8 @@ class _VisitCardState extends State<_VisitCard> {
                     );
                   }),
 
-                  // 服薬注意点（添付文書ベース）― 薬剤師のみ、自動表示
-                  if (widget.isPharmacist && medicineNames.isNotEmpty) ...[
+                  // 服薬注意点（添付文書ベース）― 薬剤師と介護士・看護師に自動表示
+                  if (_canSeeCautions && medicineNames.isNotEmpty) ...[
                     Divider(height: 1, color: Colors.grey.shade100),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
@@ -1558,9 +1652,14 @@ class _VisitCardState extends State<_VisitCard> {
                   ],
 
                   // 副作用チェック（受診日経過後に表示）
+                  //
+                  // 「副作用はありましたか？」に答えられるのは、実際に様子を見ている
+                  // 介護士・看護師である。薬剤師限定にしていると、記録する人と
+                  // 観察する人が食い違って、結局埋まらない。記入者は checkedBy に
+                  // 残るので、誰の観察かは後から辿れる。
                   if (visitDate != null &&
                       DateTime.now().isAfter(visitDate) &&
-                      widget.isPharmacist) ...[
+                      _canSeeCautions) ...[
                     Divider(height: 1, color: Colors.grey.shade100),
                     _SideEffectCheckWidget(
                       patientId: patientId,
@@ -1632,7 +1731,7 @@ class _VisitFooter extends StatelessWidget {
             return Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: const BoxDecoration(
-                color: Color(0xFFF5F7FA),
+                color: AppTheme.canvas,
                 borderRadius: BorderRadius.vertical(bottom: Radius.circular(16)),
               ),
               child: Row(
@@ -1826,10 +1925,10 @@ class _MedicationCautionPanel extends StatelessWidget {
       children: [
         const Row(
           children: [
-            Icon(Icons.medication_outlined, size: 15, color: Color(0xFF6A1B9A)),
+            Icon(Icons.medication_outlined, size: 15, color: AppTheme.accentDeep),
             SizedBox(width: 4),
             Text('服薬注意点（添付文書ベース）',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF6A1B9A))),
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppTheme.accentDeep)),
           ],
         ),
         const SizedBox(height: 6),
@@ -1847,9 +1946,9 @@ class _MedicationCautionPanel extends StatelessWidget {
             margin: const EdgeInsets.only(bottom: 8),
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: const Color(0xFFF3E5F5),
+              color: AppTheme.canvas,
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFFCE93D8)),
+              border: Border.all(color: AppTheme.line),
             ),
             child: Text(mergedSummary, style: const TextStyle(fontSize: 12, height: 1.6)),
           ),
@@ -1900,7 +1999,7 @@ class _MedicationCautionPanel extends StatelessWidget {
                       children: [
                         Text(
                           '${c['sectionNumber'] ?? ''} ${_categoryLabel(c['category'] as String? ?? '')}'.trim(),
-                          style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Color(0xFF6A1B9A)),
+                          style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: AppTheme.accentDeep),
                         ),
                         Text(c['text'] as String? ?? '', style: const TextStyle(fontSize: 12, height: 1.5)),
                         Text(
@@ -2298,7 +2397,7 @@ class _SideEffectCheckWidget extends StatelessWidget {
             ElevatedButton(
               onPressed: () => Navigator.pop(ctx, true),
               style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF1976D2),
+                  backgroundColor: AppTheme.accentDeep,
                   foregroundColor: Colors.white),
               child: const Text('記録する'),
             ),
@@ -2470,7 +2569,7 @@ class _InfoTabState extends State<_InfoTab> {
       builder: (_) => StatefulBuilder(
         builder: (ctx, setDlg) => AlertDialog(
           title: const Row(children: [
-            Icon(Icons.warning_amber_rounded, color: Color(0xFFB71C1C), size: 20),
+            Icon(Icons.warning_amber_rounded, color: AppTheme.danger, size: 20),
             SizedBox(width: 8),
             Text('アレルギー情報'),
           ]),
@@ -2548,8 +2647,12 @@ class _InfoTabState extends State<_InfoTab> {
                 final nav = Navigator.of(ctx);
                 final msg = ScaffoldMessenger.of(context);
                 try {
-                  await FirebaseFirestore.instance.collection('patients').doc(widget.patient.id)
-                      .update({'allergies': currentAllergies});
+                  await _updatePatientAudited(
+                    widget.patient,
+                    widget.user,
+                    {'allergies': currentAllergies},
+                    reason: 'アレルギー情報の編集',
+                  );
                   nav.pop();
                   msg.showSnackBar(const SnackBar(content: Text('アレルギー情報を保存しました'), backgroundColor: Colors.green));
                 } catch (e) {
@@ -2557,7 +2660,7 @@ class _InfoTabState extends State<_InfoTab> {
                   msg.showSnackBar(SnackBar(content: Text('保存失敗: $e'), backgroundColor: Colors.red));
                 }
               },
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFB71C1C), foregroundColor: Colors.white),
+              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.danger, foregroundColor: Colors.white),
               child: const Text('保存'),
             ),
           ],
@@ -2589,8 +2692,12 @@ class _InfoTabState extends State<_InfoTab> {
               final nav = Navigator.of(context);
               final msg = ScaffoldMessenger.of(context);
               try {
-                await FirebaseFirestore.instance.collection('patients').doc(widget.patient.id)
-                    .update({'medicalNotes': ctrl.text.trim()});
+                await _updatePatientAudited(
+                  widget.patient,
+                  widget.user,
+                  {'medicalNotes': ctrl.text.trim()},
+                  reason: '服薬上の特記事項の編集',
+                );
                 nav.pop();
                 msg.showSnackBar(const SnackBar(content: Text('保存しました'), backgroundColor: Colors.green));
               } catch (e) {
@@ -2598,7 +2705,7 @@ class _InfoTabState extends State<_InfoTab> {
                 msg.showSnackBar(SnackBar(content: Text('保存失敗: $e'), backgroundColor: Colors.red));
               }
             },
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1976D2), foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.accentDeep, foregroundColor: Colors.white),
             child: const Text('保存'),
           ),
         ],
@@ -2732,10 +2839,12 @@ class _InfoTabState extends State<_InfoTab> {
                   if (liverNotesCtrl.text.trim().isNotEmpty) {
                     updateData['liverNotes'] = liverNotesCtrl.text.trim();
                   }
-                  await FirebaseFirestore.instance
-                      .collection('patients')
-                      .doc(widget.patient.id)
-                      .update(updateData);
+                  await _updatePatientAudited(
+                    widget.patient,
+                    widget.user,
+                    updateData,
+                    reason: '腎機能・肝機能の編集',
+                  );
                   if (!mounted) return;
                   navigator.pop();
                   messenger.showSnackBar(const SnackBar(
@@ -2750,7 +2859,7 @@ class _InfoTabState extends State<_InfoTab> {
                 }
               },
               style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF1976D2),
+                  backgroundColor: AppTheme.accentDeep,
                   foregroundColor: Colors.white),
               child: const Text('保存'),
             ),
@@ -2785,7 +2894,7 @@ class _InfoTabState extends State<_InfoTab> {
             color: Colors.white,
             borderRadius: BorderRadius.circular(12),
             border: patient.allergies.isNotEmpty
-                ? Border.all(color: const Color(0xFFB71C1C), width: 1.5)
+                ? Border.all(color: AppTheme.danger, width: 1.5)
                 : null,
             boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 6)],
           ),
@@ -2796,20 +2905,20 @@ class _InfoTabState extends State<_InfoTab> {
                 children: [
                   Icon(Icons.warning_amber_rounded,
                       size: 18,
-                      color: patient.allergies.isNotEmpty ? const Color(0xFFB71C1C) : Colors.grey),
+                      color: patient.allergies.isNotEmpty ? AppTheme.danger : Colors.grey),
                   const SizedBox(width: 8),
                   Text('アレルギー',
                       style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 14,
-                          color: patient.allergies.isNotEmpty ? const Color(0xFFB71C1C) : Colors.black87)),
+                          color: patient.allergies.isNotEmpty ? AppTheme.danger : Colors.black87)),
                   const Spacer(),
                   if (isPharmacist)
                     TextButton.icon(
                       onPressed: _showAllergyDialog,
                       icon: const Icon(Icons.edit, size: 14),
                       label: const Text('編集', style: TextStyle(fontSize: 12)),
-                      style: TextButton.styleFrom(foregroundColor: const Color(0xFFB71C1C), padding: EdgeInsets.zero),
+                      style: TextButton.styleFrom(foregroundColor: AppTheme.danger, padding: EdgeInsets.zero),
                     ),
                 ],
               ),
@@ -2826,7 +2935,7 @@ class _InfoTabState extends State<_InfoTab> {
                           border: Border.all(color: Colors.red.shade200),
                           borderRadius: BorderRadius.circular(16),
                         ),
-                        child: Text(a, style: const TextStyle(fontSize: 12, color: Color(0xFFB71C1C), fontWeight: FontWeight.w600)),
+                        child: Text(a, style: const TextStyle(fontSize: 12, color: AppTheme.danger, fontWeight: FontWeight.w600)),
                       )).toList(),
                     ),
             ],
@@ -2847,7 +2956,7 @@ class _InfoTabState extends State<_InfoTab> {
             children: [
               Row(
                 children: [
-                  const Icon(Icons.sticky_note_2_outlined, size: 18, color: Color(0xFF795548)),
+                  const Icon(Icons.sticky_note_2_outlined, size: 18, color: AppTheme.textSub),
                   const SizedBox(width: 8),
                   const Text('服薬上の特記事項', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                   const Spacer(),
@@ -2856,7 +2965,7 @@ class _InfoTabState extends State<_InfoTab> {
                       onPressed: _showMedicalNotesDialog,
                       icon: const Icon(Icons.edit, size: 14),
                       label: const Text('編集', style: TextStyle(fontSize: 12)),
-                      style: TextButton.styleFrom(foregroundColor: const Color(0xFF795548), padding: EdgeInsets.zero),
+                      style: TextButton.styleFrom(foregroundColor: AppTheme.textSub, padding: EdgeInsets.zero),
                     ),
                 ],
               ),
@@ -2922,7 +3031,7 @@ class _KidneyLiverCard extends StatelessWidget {
           Row(
             children: [
               const Icon(Icons.monitor_heart,
-                  size: 18, color: Color(0xFF1976D2)),
+                  size: 18, color: AppTheme.accentDeep),
               const SizedBox(width: 8),
               const Text('腎機能・肝機能',
                   style:
@@ -2933,7 +3042,7 @@ class _KidneyLiverCard extends StatelessWidget {
                 icon: const Icon(Icons.edit, size: 14),
                 label: const Text('記録', style: TextStyle(fontSize: 12)),
                 style: TextButton.styleFrom(
-                    foregroundColor: const Color(0xFF1976D2),
+                    foregroundColor: AppTheme.accentDeep,
                     padding: EdgeInsets.zero),
               ),
             ],
@@ -2974,7 +3083,7 @@ class _KidneyLiverCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('eGFR詳細', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF1976D2))),
+                  const Text('eGFR詳細', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppTheme.accentDeep)),
                   const SizedBox(height: 4),
                   Text(
                     patient.egfrNotes.isNotEmpty ? patient.egfrNotes : '詳細メモなし',
@@ -3613,7 +3722,7 @@ class _VitalsTabState extends State<_VitalsTab> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
+      backgroundColor: AppTheme.canvas,
       floatingActionButton: FloatingActionButton(
         onPressed: _showAddVitalsDialog,
         backgroundColor: Colors.teal,

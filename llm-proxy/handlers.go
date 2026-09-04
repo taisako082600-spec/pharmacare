@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 )
@@ -258,10 +259,14 @@ func (s *server) triageHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// AI呼び出しが失敗しても、確保したトークン枠は使っていないので即座に返却する。
 		s.recordBudgets(req.FacilityID, estimatedTokensPerRequest, 0)
+		// 失敗の詳細は運用者向けにログへ出し、画面には出さない。
+		// err には "ANTHROPIC_API_KEY が設定されていません" のような内部構成が
+		// そのまま入るため、介護施設の職員に見せる文言に混ぜてはいけない。
+		log.Printf("トリアージのAI解説生成に失敗: %v", err)
 		writeJSON(w, http.StatusOK, TriageResponse{
 			TriageResult:    triageResult,
 			RedFlagOverride: redFlagOverride,
-			Explanation:     "AI解説は現在利用できません（" + err.Error() + "）。判定結果に従って対応し、必要に応じて薬剤師・医師に相談してください。",
+			Explanation:     "AI解説は現在利用できません。判定結果に従って対応し、必要に応じて薬剤師・医師に相談してください。",
 		})
 		return
 	}

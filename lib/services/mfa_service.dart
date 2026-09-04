@@ -1,3 +1,6 @@
+import 'dart:js_interop';
+import 'dart:js_interop_unsafe';
+
 import 'package:firebase_auth/firebase_auth.dart';
 
 /// 二要素認証(TOTP方式)。
@@ -30,11 +33,102 @@ class MfaService {
     return factors.isNotEmpty;
   }
 
+  /// メールアドレスが確認済みか。
+  ///
+  /// Firebaseは、メールアドレスの確認が済んでいないアカウントでは二要素認証を
+  /// 登録させない(auth/unverified-email)。本人でないアドレスに二要素認証を
+  /// 紐づけてしまうと復旧できなくなるための仕様。
+  /// 画面側は登録を始める前にこれを確認し、未確認なら先に確認メールを送る。
+  Future<bool> isEmailVerified() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return false;
+    // 確認直後でもローカルの状態は古いままなので、サーバーから取り直す
+    await user.reload();
+    return FirebaseAuth.instance.currentUser?.emailVerified ?? false;
+  }
+
+  /// 確認メールを送る。
+  Future<void> sendEmailVerification() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      throw StateError('ログインしていません');
+    }
+    await user.sendEmailVerification();
+  }
+
   /// 登録済みの要素一覧(解除画面で表示する用)。
   Future<List<MultiFactorInfo>> enrolledFactors() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return [];
     return user.multiFactor.getEnrolledFactors();
+  }
+
+  /// 直近のログインからの経過が長いと、Firebase は二要素認証の登録を拒否する
+  /// (`auth/requires-recent-login`)。乗っ取られたセッションで second factor を
+  /// 勝手に足されないための仕様。
+  ///
+  /// 画面側はこれを捕まえて、パスワードを聞き直してから登録を再開する。
+  static bool isRecentLoginRequired(Object e) => _hasCode(e, 'requires-recent-login');
+
+  /// メールアドレス未確認で登録できない状態か。
+  static bool isUnverifiedEmail(Object e) => _hasCode(e, 'unverified-email');
+
+  /// コード比較。`FirebaseAuthException` は `requires-recent-login`、
+  /// JS から素通しで来たものは `auth/requires-recent-login` と接頭辞が違うので両方見る。
+  static bool _hasCode(Object e, String code) {
+    final actual = errorCode(e);
+    return actual == code || actual == 'auth/$code';
+  }
+
+  /// 原因を切り分けられるよう、Firebase のエラーコードを取り出す。
+  /// 画面に出す文言は呼び出し側で用意し、これは括弧書きの補足に使う。
+  static String errorCode(Object e) {
+    if (e is FirebaseAuthException) return e.code;
+    return _jsProperty(e, 'code') ?? e.runtimeType.toString();
+  }
+
+  /// 画面に出せる説明。コードが取れないときの最後の手がかりになる。
+  static String? errorMessage(Object e) {
+    if (e is FirebaseAuthException) return e.message;
+    return _jsProperty(e, 'message');
+  }
+
+  /// firebase_auth_web は TOTP 周りの失敗を `FirebaseAuthException` に変換せず、
+  /// JS の例外オブジェクトをそのまま投げてくることがある。実機ではこれが
+  /// `JSObject` として現れ、`e.runtimeType` を出すだけの実装だったため
+  /// 画面に「設定を開始できませんでした（JSObject）」と表示され、
+  /// **本来なら再認証で回復できる `requires-recent-login` まで
+  /// 判別できずに行き止まりになっていた**(2026-08-27に実機で発覚)。
+  ///
+  /// JS 側のオブジェクトには `code` / `message` が乗っているので直接読む。
+  /// 本アプリは Web 専用ビルドのため `dart:js_interop` を条件付きimportなしで
+  /// 使ってよい(qr_scanner_screen.dart 等も同様)。
+  static String? _jsProperty(Object e, String name) {
+    // 投げられた物の型が不明なので実行時に確かめるほかない。lintは
+    // 「JS相互運用型の実行時チェックはプラットフォーム間で挙動が揃わない」と
+    // 警告するが、本アプリはWeb専用ビルドで、確かめたいのはまさに
+    // 「dart2jsがJS例外をJSObjectとして渡してきたか」なので、ここでは適切。
+    // ignore: invalid_runtime_check_with_js_interop_types
+    if (e is! JSObject) return null;
+    try {
+      final value = e.getProperty<JSAny?>(name.toJS).dartify();
+      if (value is String && value.isNotEmpty) return value;
+    } catch (_) {
+      // プロパティが無い形のオブジェクトなら読めなくて当然なので、null を返す
+    }
+    return null;
+  }
+
+  /// パスワードを再入力してもらい、直近ログインの状態に戻す。
+  Future<void> reauthenticate(String password) async {
+    final user = FirebaseAuth.instance.currentUser;
+    final email = user?.email;
+    if (user == null || email == null) {
+      throw StateError('ログインしていません');
+    }
+    await user.reauthenticateWithCredential(
+      EmailAuthProvider.credential(email: email, password: password),
+    );
   }
 
   /// 登録の第1段階。認証アプリに読み込ませるQRコードURLと、手入力用の秘密鍵を作る。

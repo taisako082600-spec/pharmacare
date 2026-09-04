@@ -138,6 +138,36 @@ func TestApplyVitalsRedFlags(t *testing.T) {
 			wantKey:         "vitalsSevereHypertension",
 			wantPresent:     false,
 		},
+		// ショック(qSOFAの収縮期血圧項目)。書籍1がほぼ全症候で「ショック」を
+		// 緊急徴候として挙げているため、カテゴリを問わず発火させる。
+		{
+			name:            "収縮期血圧100以下はカテゴリを問わずレッドフラッグ",
+			symptomCategory: "diarrheaConstipation",
+			bpSystolic:      f(88),
+			wantKey:         "vitalsHypotension",
+			wantPresent:     true,
+		},
+		{
+			name:            "収縮期血圧ちょうど100も境界として含める",
+			symptomCategory: "fever",
+			bpSystolic:      f(100),
+			wantKey:         "vitalsHypotension",
+			wantPresent:     true,
+		},
+		{
+			name:            "収縮期血圧が101なら発火しない",
+			symptomCategory: "fever",
+			bpSystolic:      f(101),
+			wantKey:         "vitalsHypotension",
+			wantPresent:     false,
+		},
+		{
+			name:            "高血圧側では低血圧フラグは立たない",
+			symptomCategory: "headache",
+			bpSystolic:      f(185),
+			wantKey:         "vitalsHypotension",
+			wantPresent:     false,
+		},
 	}
 
 	for _, c := range cases {

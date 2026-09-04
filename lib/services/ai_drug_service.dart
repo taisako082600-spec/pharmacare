@@ -12,12 +12,21 @@ class AiDrugService {
   AiDrugService._internal();
 
   // Goプロキシのベースエンドポイント。
-  // ここに書いてあるのはローカル開発用のデフォルト値。本番ビルドは
-  // `--dart-define=LLM_PROXY_URL=...` でCloud RunのURLを注入して上書きする
-  // (本番URLはリポジトリに書かず、ビルド時に渡す)。
+  //
+  // 以前はデフォルトを localhost:8081 にして「本番は --dart-define で渡す」運用に
+  // していたが、渡し忘れた本番ビルドがそのまま出て、全端末が自分自身の
+  // localhost を叩き続けていた(2026-08-27に実機のスクリーンショットで発覚。
+  // 配信中の main.dart.js に localhost:8081 が3箇所、Cloud RunのURLは0箇所)。
+  // 画面には「プロキシに接続できません」としか出ないため、誰も気づけない。
+  //
+  // このURLは秘匿情報ではない。ブラウザから直接叩かれる公開エンドポイントで、
+  // 配信されるJSを開けば誰でも読める。保護しているのはURLの秘匿ではなく
+  // Firebase IDトークンの検証(auth_middleware.go)と許可オリジンの列挙(cors.go)。
+  // 隠して得るものが無く、隠したことで機能が丸ごと止まったので、既定値にする。
+  // ローカル開発は `--dart-define=LLM_PROXY_URL=http://localhost:8081` で上書きする。
   static const String _proxyBaseUrl = String.fromEnvironment(
     'LLM_PROXY_URL',
-    defaultValue: 'http://localhost:8081',
+    defaultValue: 'https://pharmacore-llm-proxy-p6j6p3dn5q-an.a.run.app',
   );
 
   Future<String?> _authHeaderToken() async {
@@ -174,6 +183,37 @@ class AiDrugService {
     }
   }
 
+  /// 管理者専用: 添付文書のプレーンテキストを章立てに分割する。
+  /// プロキシの POST /v1/admin/parse-label-text に対応。
+  ///
+  /// PDFから抜き出したテキストを渡す用途。分割はサーバー側の
+  /// ChunkAttachmentDocument が行い、**保存はしない**（管理者が画面で確認してから保存する）。
+  /// 自動取得と同じ関数を通すことで、取り込み経路によって結果が変わらないようにしている。
+  Future<Map<String, dynamic>> adminParseLabelText({required String text}) async {
+    try {
+      final token = await _authHeaderToken();
+      final response = await http
+          .post(
+            Uri.parse('$_proxyBaseUrl/v1/admin/parse-label-text'),
+            headers: {
+              'Content-Type': 'application/json',
+              if (token != null) 'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode({'text': text}),
+          )
+          .timeout(const Duration(seconds: 30));
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      }
+      debugPrint('添付文書の分割 エラー: ${response.statusCode} ${response.body}');
+      return {'success': false, 'reason': 'サーバーエラー（${response.statusCode}）'};
+    } catch (e) {
+      debugPrint('添付文書の分割 通信エラー: $e');
+      return {'success': false, 'reason': 'プロキシに接続できません'};
+    }
+  }
+
   // 'consciousness'(意識障害)カテゴリはレッドフラッグの選択状態によらず常に受診推奨とする。
   // llm-proxy/redflag.go の alwaysReferCategories と同じ特別ルール。
   static const _alwaysReferCategories = {'consciousness'};
@@ -182,6 +222,8 @@ class AiDrugService {
   // ApplyVitalsRedFlags と同じ閾値・ロジック(必ず同期させること)。
   static const _vitalsLowSpO2Threshold = 90.0;
   static const _vitalsSevereHypertensionSystolic = 180.0;
+  // ショック/qSOFAの収縮期血圧項目。カテゴリを問わない。
+  static const _vitalsHypotensionSystolic = 100.0;
 
   Map<String, dynamic> _fallbackTriageResult(
     String symptomCategory,
@@ -199,6 +241,9 @@ class AiDrugService {
         bpSystolic >= _vitalsSevereHypertensionSystolic &&
         symptomCategory == 'headache') {
       effectiveRedFlags['vitalsSevereHypertension'] = true;
+    }
+    if (bpSystolic != null && bpSystolic <= _vitalsHypotensionSystolic) {
+      effectiveRedFlags['vitalsHypotension'] = true;
     }
 
     final hasRedFlag = _alwaysReferCategories.contains(symptomCategory) ||

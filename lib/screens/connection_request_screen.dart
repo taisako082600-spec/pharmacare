@@ -1,6 +1,7 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user_model.dart';
+import '../services/invite_code.dart';
 
 // 薬剤師用：施設を検索して申請する画面
 class PharmacistConnectionScreen extends StatefulWidget {
@@ -27,17 +28,24 @@ class _PharmacistConnectionScreenState extends State<PharmacistConnectionScreen>
   }
 
   // 招待コードで施設と連携
-  Future<void> _connectWithCode(String code) async {
-    if (code.length != 6) return;
+  Future<void> _connectWithCode(String rawCode) async {
+    // 表示は ABCD-EFGH と区切るので、ハイフン・小文字・全角を吸収してから照合する。
+    final code = InviteCode.normalize(rawCode);
+    if (!InviteCode.isPlausible(code)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('コードの形式が違います'), backgroundColor: Colors.red),
+      );
+      return;
+    }
     final now = Timestamp.now();
 
-    final snap = await FirebaseFirestore.instance
-        .collection('invite_codes')
-        .where('code', isEqualTo: code)
-        .where('used', isEqualTo: false)
-        .get();
+    // ドキュメントIDがコード文字列そのものなので、クエリではなくID指定で引く。
+    // firestore.rules は invite_codes を get のみ許可し list は施設関係者に限っている
+    // (コードを知らない人がクエリで一覧できないようにするため)。
+    final doc = await FirebaseFirestore.instance.collection('invite_codes').doc(code).get();
+    final data = doc.data();
 
-    if (snap.docs.isEmpty) {
+    if (!doc.exists || data == null || data['used'] == true) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('コードが見つかりません'), backgroundColor: Colors.red),
@@ -45,8 +53,6 @@ class _PharmacistConnectionScreenState extends State<PharmacistConnectionScreen>
       return;
     }
 
-    final doc = snap.docs.first;
-    final data = doc.data();
     final expiresAt = data['expiresAt'] as Timestamp;
 
     if (now.compareTo(expiresAt) > 0) {
@@ -74,6 +80,7 @@ class _PharmacistConnectionScreenState extends State<PharmacistConnectionScreen>
     // コードを使用済みに
     batch.update(doc.reference, {'used': true, 'usedBy': widget.user.uid, 'usedAt': FieldValue.serverTimestamp()});
 
+
     // 施設のpharmacistIdsに追加
     batch.update(
       FirebaseFirestore.instance.collection('facilities').doc(facilityId),
@@ -87,6 +94,9 @@ class _PharmacistConnectionScreenState extends State<PharmacistConnectionScreen>
         'facilityIds': FieldValue.arrayUnion([facilityId]),
         'facilityId': facilityId,
         'facilityName': facilityName,
+        // 所属を変える書き込みなので、根拠として使ったコードを残す。
+        // firestore.rules がこれを get() で照合し、実在・施設一致・未期限を確かめる。
+        'joinedWithCode': code,
       },
     );
 
@@ -116,7 +126,15 @@ class _PharmacistConnectionScreenState extends State<PharmacistConnectionScreen>
       return;
     }
 
-    await FirebaseFirestore.instance.collection('connection_requests').add({
+    // ドキュメントIDを「薬剤師UID_施設ID」に固定する。
+    // 承認後、施設側が薬剤師の users ドキュメントへ所属を書き込む必要があるが、
+    // firestore.rules がそれを許可してよいか判断するには「承認済みの申請が実在するか」を
+    // get() で引けなければならない。自動採番IDだとルールから辿れない
+    // (招待コードをコード文字列IDにしたのと同じ理由)。
+    await FirebaseFirestore.instance
+        .collection('connection_requests')
+        .doc('${widget.user.uid}_$facilityId')
+        .set({
       'pharmacistId': widget.user.uid,
       'pharmacistName': widget.user.name,
       'pharmacistEmail': widget.user.email,
@@ -198,20 +216,22 @@ class _InviteCodeInputTabState extends State<_InviteCodeInputTab> {
           const Text('招待コードで連携', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
           const Text(
-            '施設管理者から受け取った\n6桁のコードを入力してください',
+            '施設管理者から受け取ったコードを入力してください',
             textAlign: TextAlign.center,
             style: TextStyle(color: Colors.black54, height: 1.6),
           ),
           const SizedBox(height: 32),
           TextField(
             controller: _controller,
-            keyboardType: TextInputType.number,
-            maxLength: 6,
+            // 英数字混在になったので数字キーボードにしない。
+            // 大文字で保持するが、小文字で打たれても normalize が吸収する。
+            textCapitalization: TextCapitalization.characters,
+            maxLength: InviteCode.inputMaxLength,
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, letterSpacing: 12),
+            style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 6),
             decoration: InputDecoration(
-              hintText: '000000',
-              hintStyle: TextStyle(color: Colors.grey.shade300, fontSize: 32, letterSpacing: 12),
+              hintText: 'ABCD-EFGH',
+              hintStyle: TextStyle(color: Colors.grey.shade300, fontSize: 28, letterSpacing: 6),
               counterText: '',
               filled: true,
               fillColor: Colors.white,

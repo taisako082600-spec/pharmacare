@@ -89,6 +89,7 @@ triage_source_extracts/
 職務経歴書*.docx
 職務経歴書*.pdf
 転職ロード*.md
+引き継ぎ_転職検討サマリー.md
 並行実行計画*.md
 カジュアル面談*.md
 業務委託_応募文面.md
@@ -141,3 +142,14 @@ VERSIONS.md
 
 # PDF (同名の .md があるため重複)
 USER_GUIDE.pdf
+
+# 整理でまとめた置き場 (2026-08-27)
+# パターンはスラッシュ無しなので配下でも除外は効くが、明示しておく
+_個人/
+_内部/
+
+# PDFは .md から再生成できるので追跡しない
+docs/pdf/
+
+# Claude Code のローカル設定（許可設定などマシン固有）
+.claude/settings.local.json

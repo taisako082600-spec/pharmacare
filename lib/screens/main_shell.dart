@@ -1,6 +1,9 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user_model.dart';
+import '../theme/app_theme.dart';
+import '../services/mfa_service.dart';
+import 'mfa_screens.dart';
 import 'home_screen.dart';
 import 'chat_list_screen.dart';
 import 'patient_list_screen.dart';
@@ -39,17 +42,61 @@ class _MainShellState extends State<MainShell> {
         ProfileScreen(user: widget.user),
       ];
     }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) => _promptMfaIfUnenrolled());
   }
 
-  Color get _themeColor {
-    switch (widget.user.role) {
-      case '薬剤師': return const Color(0xFF1976D2);
-      case '介護士': return const Color(0xFF388E3C);
-      case '看護師': return const Color(0xFFD32F2F);
-      case '家族': return const Color(0xFF6A1B9A);
-      default: return const Color(0xFF388E3C);
+  /// 二要素認証が未登録なら、ログイン直後に一度だけ案内する。
+  ///
+  /// 登録画面はマイページから開けるが、それだけでは誰も登録しない。
+  /// 2026-08-19時点の本番アカウント5件はいずれも未登録で、
+  /// 「機能はあるが使われていない」状態だった。ガイドライン システム運用編 14⑤ は
+  /// 令和9年4月1日までの二要素認証採用を求めており、期限までに実際に使われている
+  /// 必要がある。
+  ///
+  /// ここでブロックはしない。介護施設では夜勤帯に初めてログインする職員もいて、
+  /// その場で認証アプリを用意できないと業務が止まるため。強制するなら
+  /// Identity Platform の `mfa.state` を `MANDATORY` にする（全員の登録完了後）。
+  Future<void> _promptMfaIfUnenrolled() async {
+    if (await MfaService().isEnrolled()) return;
+    if (!mounted) return;
+
+    final go = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('二要素認証の設定をおすすめします'),
+        content: const Text(
+          'このアプリは患者さんの医療情報を扱います。\n'
+          'パスワードが漏れても本人以外がログインできないよう、'
+          '認証アプリによる6桁の確認を追加できます。\n\n'
+          '設定は数分で終わり、費用はかかりません。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('あとで'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('設定する'),
+          ),
+        ],
+      ),
+    );
+
+    if (go == true && mounted) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => MfaSettingsScreen(accountName: widget.user.email),
+        ),
+      );
     }
   }
+
+  /// 立場を示す色。原色をそのまま使うと画面全体が派手になり、
+  /// 医療情報を扱う道具として落ち着かないので、AppTheme 側で彩度を抑えた値に寄せた。
+  Color get _themeColor => AppTheme.roleColor(widget.user.role);
 
   // チャット未読数を取得（施設限定で効率化）
   Stream<bool> _hasUnreadChat() {
