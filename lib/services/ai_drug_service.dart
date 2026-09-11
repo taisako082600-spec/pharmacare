@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:meta/meta.dart' show visibleForTesting;
 
 /// Claude API への直接呼び出しは行わず、Go製LLMプロキシ(llm-proxy/)を経由する。
 /// プロキシがプロンプトキャッシュ・トークン上限管理・OTCトリアージの安全弁ロジックを担う。
@@ -224,6 +225,31 @@ class AiDrugService {
   static const _vitalsSevereHypertensionSystolic = 180.0;
   // ショック/qSOFAの収縮期血圧項目。カテゴリを問わない。
   static const _vitalsHypotensionSystolic = 100.0;
+
+  /// プロキシ未接続時の最後の砦。`llm-proxy/redflag.go` の
+  /// `DetermineTriageResult` / `ApplyVitalsRedFlags` と同じ閾値・優先順位を
+  /// Dart側で再実装したもの(意図的な重複。オフラインでも判定を返すため)。
+  ///
+  /// 二重実装が食い違うと、オンライン時とオフライン時で判定が変わるという
+  /// 一番気づきにくい種類のバグになる。`@visibleForTesting` で公開しているのは
+  /// そのためで、`test/fallback_triage_test.dart` が Go側と同じケースを検証する。
+  @visibleForTesting
+  Map<String, dynamic> fallbackTriageResultForTesting(
+    String symptomCategory,
+    Map<String, bool> redFlags,
+    Map<String, bool> consultationFlags,
+    int severityScore, {
+    double? spo2,
+    double? bpSystolic,
+  }) =>
+      _fallbackTriageResult(
+        symptomCategory,
+        redFlags,
+        consultationFlags,
+        severityScore,
+        spo2: spo2,
+        bpSystolic: bpSystolic,
+      );
 
   Map<String, dynamic> _fallbackTriageResult(
     String symptomCategory,
